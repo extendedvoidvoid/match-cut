@@ -1,11 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['api.producthunt.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'api.producthunt.com',
+      },
+    ],
   },
-  experimental: {
-    esmExternals: false,
-  },
+  // FFmpeg.wasm needs asyncWebAssembly — keep webpack path (see package.json --webpack)
+  turbopack: {},
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

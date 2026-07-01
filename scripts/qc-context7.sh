@@ -5,6 +5,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+if [[ -f "$ROOT/.env.local" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$ROOT/.env.local"
+  set +a
+fi
+
 export CTX7_TELEMETRY_DISABLED=1
 
 AUDIT_DIR="${1:-docs/audits/latest}"
@@ -37,14 +44,14 @@ MP_LIB="$AUDIT_DIR/ctx7/mediapipe-libid.txt"
 if [[ ! -f "$MP_LIB" ]]; then
   $CTX7 library "mediapipe tasks vision" "face landmarker browser" 2>/dev/null | head -20 >"$MP_LIB" || true
 fi
-MP_ID="/google/mediapipe"
+MP_ID="/google-ai-edge/mediapipe"
 if grep -qE '^/[a-z0-9_-]+/[a-z0-9_.-]+' "$MP_LIB" 2>/dev/null; then
   MP_ID="$(grep -oE '^/[a-z0-9_-]+/[a-z0-9_.-]+' "$MP_LIB" | head -1)"
 fi
 
-query "next-webpack" "/vercel/next.js" "webpack asyncWebAssembly experiments config Next.js 14" &
-query "react-hooks" "/facebook/react" "useCallback useEffect exhaustive deps performance" &
-query "tailwind" "/tailwindlabs/tailwindcss" "tailwind config content paths Next.js app directory" &
+query "next-webpack" "/vercel/next.js" "webpack asyncWebAssembly experiments config Next.js 16" &
+query "react-hooks" "/react/react" "useCallback useEffect exhaustive deps performance" &
+query "tailwind" "/tailwindlabs/tailwindcss.com" "tailwind config content paths Next.js app directory" &
 query "mediapipe" "$MP_ID" "Face Landmarker browser JavaScript detect eyes" &
 
 # Cap parallel jobs

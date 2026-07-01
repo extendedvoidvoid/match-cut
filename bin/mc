@@ -22,6 +22,16 @@ case "$cmd" in
   qc) exec npm run qc ;;
   qc-deep) exec npm run qc:deep ;;
   qc-context7) exec npm run qc:context7 ;;
+  fetch-film-grab)
+    shift
+    VENV_PY="$ROOT/.venv-film-grab/bin/python"
+    if [[ -x "$VENV_PY" ]]; then
+      PY="$VENV_PY"
+    else
+      PY="${MATCHCUT_PYTHON:-python3}"
+    fi
+    exec "$PY" scripts/fetch-film-grab/fetch.py "$@"
+    ;;
   exports)
     exec open "/Users/alexphoenix/projects/Face Aligntment "
     ;;
@@ -39,6 +49,7 @@ case "$cmd" in
     echo "  qc           Full parallel QC (M3 Max)"
     echo "  qc-deep      QC + tsc --noEmit"
     echo "  qc-context7  Context7 stack audit only"
+    echo "  fetch-film-grab  Film-grab image pipeline (discover|plan|download|run)"
     echo "  exports      Open Face Aligntment export folder"
     echo "  cd       Open shell in project root"
     echo ""

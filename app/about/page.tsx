@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Smile, Zap, Music2, Share2, Sparkles, ShieldCheck, Image as ImageIcon, Play, TrendingUp, Instagram } from 'lucide-react'
+import { Smile, Zap, Music2, Share2, Sparkles, ShieldCheck, Image as ImageIcon, Play, TrendingUp } from 'lucide-react'
+import { InstagramIcon } from '@/components/InstagramIcon'
 
 export const metadata = {
   title: 'About – Match Cut Generator',
@@ -69,7 +70,7 @@ export default function AboutPage() {
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
-                <Instagram className="w-5 h-5" />
+                <InstagramIcon className="w-5 h-5" />
               </a>
             </div>
           </div>

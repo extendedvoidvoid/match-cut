@@ -57,3 +57,7 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+
+# Film-grab assets (large; use scripts/fetch-film-grab)
+assets/film-grab/
+.venv-film-grab/

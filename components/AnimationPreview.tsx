@@ -28,7 +28,7 @@ export default function AnimationPreview({
   disabled = false
 }: AnimationPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [lastFrameTime, setLastFrameTime] = useState(0);
 

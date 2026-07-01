@@ -60,9 +60,9 @@ npx ctx7 docs /vercel/next.js "webpack asyncWebAssembly config"
 | Stack | Library ID |
 |-------|------------|
 | Next.js | `/vercel/next.js` |
-| React | `/facebook/react` |
-| Tailwind | `/tailwindlabs/tailwindcss` |
+| React | `/react/react` |
+| Tailwind | `/tailwindlabs/tailwindcss.com` |
 | ESLint | `/eslint/eslint` |
-| MediaPipe | resolve via `ctx7 library mediapipe face landmarker` |
+| MediaPipe | `/google-ai-edge/mediapipe` |
 
 Automated queries: `scripts/qc-context7.sh` (called by `scripts/qc-audit.sh`).

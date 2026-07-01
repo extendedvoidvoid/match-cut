@@ -9,7 +9,11 @@ export const metadata = {
   description: 'Auto-aligned Match Cut Video Generator - Create smooth eye-aligned animations from your photos',
   keywords: ['match cut', 'video generator', 'face alignment', 'animation', 'gif', 'mp4'],
   authors: [{ name: 'Match Cut Generator' }],
-  viewport: 'width=device-width, initial-scale=1',
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({

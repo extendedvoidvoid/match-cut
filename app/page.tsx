@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Smile, Zap, Download, Instagram } from 'lucide-react';
+import { Smile, Zap, Download } from 'lucide-react';
+import { InstagramIcon } from '@/components/InstagramIcon';
 import Link from 'next/link';
 import ImageUpload from '@/components/ImageUpload';
 import ImageGrid from '@/components/ImageGrid';
@@ -610,7 +611,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
-                <Instagram className="w-5 h-5" />
+                <InstagramIcon className="w-5 h-5" />
               </a>
             </div>
           </div>

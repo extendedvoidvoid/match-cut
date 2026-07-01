@@ -34,7 +34,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: npm audit (high+, advisory until Next 16)
+      - name: npm audit (high+, advisory — transitive postcss in next)
         continue-on-error: true
         run: npm audit --audit-level=high
 
