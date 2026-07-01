@@ -7,7 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check:practices": "bash scripts/check-practices.sh",
+    "mc": "bin/mc"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.10",

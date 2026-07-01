@@ -35,13 +35,41 @@ See [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) for full system and browser req
 ### Install & run
 
 ```bash
-cd /Users/alexphoenix/projects/match-cut
-nvm use          # optional, if using nvm
+mc cd            # jump to project (shell alias)
 npm install
-npm run dev
+mc dev           # or: npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+### Project alias (`mc`)
+
+After shell setup (see below):
+
+| Command | Purpose |
+|---------|---------|
+| `mc` | `cd` to project |
+| `mc dev` | Dev server |
+| `mc build` | Production build |
+| `mc lint` | ESLint |
+| `mc check` | Good-practices guard |
+| `mc exports` | Open `Face Aligntment /` sample exports |
+
+From repo: `./bin/mc <command>` or `npm run mc -- dev`
+
+**Shell setup** (in `~/.zshrc`):
+
+```bash
+matchcut() {
+  local dir="/Users/alexphoenix/projects/match-cut"
+  case "${1:-}" in
+    dev|build|lint|check|exports) cd "$dir" && "$dir/bin/mc" "$1" ;;
+    "") cd "$dir" ;;
+    *) cd "$dir" && "$dir/bin/mc" "$@" ;;
+  esac
+}
+alias mc=matchcut
+```
 
 ### Scripts
 
@@ -51,6 +79,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run build` | Production build |
 | `npm run start` | Serve production build |
 | `npm run lint` | ESLint |
+| `npm run check:practices` | Enforce repo rules (also in CI) |
 
 ---
 
@@ -138,7 +167,9 @@ Details: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 | Doc | Contents |
 |-----|----------|
-| [AGENTS.md](AGENTS.md) | Agent workflow and hard rules |
+| [docs/GOOD_PRACTICES.md](docs/GOOD_PRACTICES.md) | **Canonical MUST/MUST NOT** (CI-enforced) |
+| [AGENTS.md](AGENTS.md) | Agent summary |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup + PR checklist |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Node, OS, browser, memory |
 | [docs/STRUCTURE.md](docs/STRUCTURE.md) | File and module reference |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common failures and fixes |

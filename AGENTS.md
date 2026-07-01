@@ -1,102 +1,64 @@
 # AGENTS.md — Match Cut Generator
 
-Rules for any AI agent working in `/Users/alexphoenix/projects/match-cut`.
+**Canonical rules:** [docs/GOOD_PRACTICES.md](docs/GOOD_PRACTICES.md)  
+**Enforcement:** `npm run check:practices` + CI + `.cursor/rules/good-practices.mdc`
 
 ---
 
 ## Project identity
 
-- **What it is:** Client-side Next.js app — upload photos → MediaPipe face/eye detect → align → preview → export GIF/MP4.
-- **What it is not:** A server upload pipeline, a Python/ffmpeg CLI, or part of `album-video-creator` / `ai-media-studio` (yet).
-- **Privacy model:** All image processing runs in the browser. Do not add server-side image upload without explicit user approval.
+- **Path:** `/Users/alexphoenix/projects/match-cut`
+- **Alias:** `mc` / `matchcut` (shell) · `./bin/mc` (repo)
+- **Fork:** `origin` → `extendedvoidvoid/match-cut` · `upstream` → `sanjogbora/match-cut`
+- **What it is:** Client-side Next.js — photos → MediaPipe → eye align → preview → GIF/MP4
+- **Privacy:** Images never leave the browser
 
 ---
 
-## Unbreakable rules
+## MUST (hardcoded)
 
-1. **Browser-first processing**
-   - Face detection, alignment, and export must stay client-side unless the user explicitly requests a server fallback.
-   - Never send user photos to external APIs.
+1. **Client-side only** — face, align, export in browser; no photo upload APIs without approval
+2. **Export contract** — `` `match-cut-${Date.now()}` `` basename; GIF and MP4 both work
+3. **Module boundaries** — logic in `lib/`; UI in `components/`; do not grow `app/page.tsx`
+4. **Surgical diffs** — smallest change; no unrelated refactors
+5. **Docs location** — no `*_FIX.md` at root; use `docs/history/` or `docs/decisions/`
+6. **CI green** — `lint` + `build` + `check:practices` before done
+7. **Smoke after pipeline edits** — 2+ faces → align → MP4 @ 720p in Chrome
 
-2. **Surgical changes**
-   - Smallest diff that solves the task. No drive-by refactors.
-   - `app/page.tsx`, `lib/beatDetection.ts`, and `lib/videoExport.ts` are large — extend via new hooks/modules rather than growing them further.
+## MUST NOT (hardcoded)
 
-3. **Reuse before rewrite**
-   - Check `lib/` and `components/` before adding parallel logic.
-   - Export filename contract: `` `match-cut-${Date.now()}` `` — do not change without updating README and any saved exports in `Face Aligntment /`.
-
-4. **No silent regressions on export**
-   - Any change to `videoExport.ts`, `imageAlignment.ts`, or `faceDetection.ts` must be testable (manual checklist at minimum until automated tests exist).
-   - GIF and MP4 paths are separate — fix one without breaking the other.
-
-5. **Document decisions**
-   - Significant architecture choices go in `docs/` (not new root-level `*_FIX.md` files).
-   - Historical fix notes belong in `docs/history/` only.
+1. Server-side image storage or third-party vision APIs (without approval)
+2. Breaking `next.config.js` wasm/COOP without export retest
+3. Changing export filename/format defaults without README update
+4. Next.js major upgrade in same PR as feature work
+5. Deleting `docs/history/` or user exports in `Face Aligntment /`
+6. Force-push `main`
 
 ---
 
-## Key files (touch map)
+## Touch map
 
-| Area | Primary files |
-|------|----------------|
-| Orchestration | `app/page.tsx` |
-| Face / eyes | `lib/faceDetection.ts`, `lib/imageAlignment.ts`, `lib/advancedAlignment.ts` |
+| Area | Files |
+|------|-------|
+| Orchestration | `app/page.tsx` → prefer new `hooks/` |
+| Face / eyes | `lib/faceDetection.ts`, `lib/imageAlignment.ts` |
 | Export | `lib/videoExport.ts`, `components/ExportOptions.tsx` |
-| Beat sync | `lib/beatDetection.ts`, `lib/audioManager.ts`, `lib/audioFilters.ts` |
-| Types | `lib/types.ts` |
-| UI | `components/*.tsx` |
-| Build / WASM | `next.config.js` (COOP/COEP, webpack wasm) |
+| Beat / audio | `lib/beatDetection.ts`, `lib/audioManager.ts` |
+| WASM | `next.config.js` |
 
 ---
 
-## Allowed actions
+## Workflow
 
-- Read and edit `app/`, `components/`, `lib/`, `public/`, `docs/`
-- Run `npm install`, `npm run dev`, `npm run build`, `npm run lint`
-- Add tests under `tests/` or `__tests__/` when introduced
-- Add CI under `.github/workflows/` when introduced
-
-## Forbidden actions (without explicit approval)
-
-- Adding backend image storage or third-party vision APIs
-- Upgrading Next.js major version in the same PR as feature work
-- Deleting `docs/history/` (archived context)
-- Moving export outputs from `/Users/alexphoenix/projects/Face Aligntment /` (user artifact folder)
-
----
-
-## Development workflow
-
-1. Read `README.md` and `docs/STRUCTURE.md` for context.
-2. Propose a minimal plan for non-trivial work.
-3. Implement surgically; match existing TypeScript + Tailwind style.
-4. Verify in Chrome: upload 2–3 face photos → preview → export MP4.
-5. Update docs if behavior, requirements, or structure changes.
-
----
-
-## Common tasks
-
-| Task | Where to look |
-|------|----------------|
-| Export fails | `lib/videoExport.ts`, `docs/TROUBLESHOOTING.md` |
-| Face not detected | `lib/faceDetection.ts`, image quality preflight |
-| Beat sync off | `lib/beatDetection.ts`, `exportSettings.beatSync` in `app/page.tsx` |
-| UI export options | `components/ExportOptions.tsx` |
-| WASM / FFmpeg load | `next.config.js`, network for CDN wasm |
-
----
-
-## Context for this machine
-
-- **Repo path:** `/Users/alexphoenix/projects/match-cut`
-- **Sample exports:** `/Users/alexphoenix/projects/Face Aligntment /` (outputs only, not source)
-- **Upstream:** [github.com/sanjogbora/match-cut](https://github.com/sanjogbora/match-cut)
-- **Deploy:** Vercel → `match-cut.vercel.app`
+1. Read `docs/GOOD_PRACTICES.md` + `docs/STRUCTURE.md`
+2. Plan minimal change
+3. Implement
+4. `mc lint && mc build && mc check`
+5. Manual smoke if `lib/` face/export touched
+6. Update docs if behavior or structure changed
 
 ---
 
 ## When in doubt
 
-Ask before: new dependencies, server routes that handle images, or breaking export filename/format contracts.
+Ask before: new dependencies, server routes with images, export contract changes.

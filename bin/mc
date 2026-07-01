@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Match Cut project alias — run from anywhere: mc dev | mc build | mc lint | mc check | mc exports
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+cmd="${1:-}"
+
+case "$cmd" in
+  dev)
+    if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+      # shellcheck source=/dev/null
+      . "$HOME/.nvm/nvm.sh"
+      nvm use >/dev/null 2>&1 || true
+    fi
+    exec npm run dev
+    ;;
+  build) exec npm run build ;;
+  lint) exec npm run lint ;;
+  check) exec npm run check:practices ;;
+  exports)
+    exec open "/Users/alexphoenix/projects/Face Aligntment "
+    ;;
+  cd|"")
+    exec "${SHELL:-/bin/zsh}"
+    ;;
+  *)
+    echo "match-cut (mc) — $(basename "$ROOT")"
+    echo ""
+    echo "Usage: mc <command>"
+    echo "  dev      Start Next.js dev server (default port 3000)"
+    echo "  build    Production build"
+    echo "  lint     ESLint"
+    echo "  check    Good-practices guard"
+    echo "  exports  Open Face Aligntment export folder"
+    echo "  cd       Open shell in project root"
+    echo ""
+    echo "Or: mc        → cd to project and open shell"
+    exit 1
+    ;;
+esac

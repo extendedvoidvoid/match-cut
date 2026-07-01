@@ -1,0 +1,33 @@
+---
+alwaysApply: true
+description: Match Cut Generator — hardcoded good practices for all agent sessions in this repo.
+---
+
+# Match Cut — engraved practices
+
+Read `docs/GOOD_PRACTICES.md` and `AGENTS.md` before non-trivial edits.
+
+## MUST
+
+- Keep all image processing client-side (MediaPipe, canvas, FFmpeg.wasm). Never upload user photos to a server or external vision API without explicit approval.
+- Preserve export basename `` `match-cut-${Date.now()}` `` for GIF/MP4 downloads.
+- Put pipeline logic in `lib/`; keep React components thin. Do not add features to `app/page.tsx` — extract `hooks/` first.
+- Fix GIF and MP4 export paths independently; smoke-test Chrome after changes to `videoExport.ts`, `imageAlignment.ts`, or `faceDetection.ts`.
+- Surgical diffs only. Match TypeScript + Tailwind style. Use `@/` imports.
+- Document user-visible changes in README; architecture changes in `docs/STRUCTURE.md`.
+- New dev notes go in `docs/history/` or `docs/decisions/` — never `*_FIX.md` at repo root.
+- Pass `npm run lint`, `npm run build`, and `npm run check:practices` before considering work done.
+
+## MUST NOT
+
+- Add server-side image storage or third-party face APIs without approval.
+- Grow `app/page.tsx`, `lib/beatDetection.ts`, or `lib/videoExport.ts` with new concerns — split modules instead.
+- Break `next.config.js` wasm/COOP settings without testing export.
+- Force-push `main` on `extendedvoidvoid/match-cut`.
+
+## Project paths
+
+- Repo: `/Users/alexphoenix/projects/match-cut`
+- Alias: `mc` / `matchcut` (shell) or `./bin/mc`
+- Sample exports: `/Users/alexphoenix/projects/Face Aligntment /`
+- Fork: `github.com/extendedvoidvoid/match-cut` (origin); `sanjogbora/match-cut` (upstream)
