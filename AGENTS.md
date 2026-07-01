@@ -22,8 +22,10 @@
 3. **Module boundaries** — logic in `lib/`; UI in `components/`; do not grow `app/page.tsx`
 4. **Surgical diffs** — smallest change; no unrelated refactors
 5. **Docs location** — no `*_FIX.md` at root; use `docs/history/` or `docs/decisions/`
-6. **CI green** — `lint` + `build` + `check:practices` before done
-7. **Smoke after pipeline edits** — 2+ faces → align → MP4 @ 720p in Chrome
+6. **CI green** — `lint` + `audit` + `build` + `check:practices` before done
+7. **QC Option B** — weekly/monthly via `qc-scheduled.yml`; local `mc qc` on M3 Max
+8. **Context7** — use `docs/CONTEXT7.md`; parallel queries per `SUBAGENT_STRATEGY.md`
+9. **Smoke after pipeline edits** — 2+ faces → align → MP4 @ 720p in Chrome
 
 ## MUST NOT (hardcoded)
 
@@ -53,7 +55,7 @@
 1. Read `docs/GOOD_PRACTICES.md` + `docs/STRUCTURE.md`
 2. Plan minimal change
 3. Implement
-4. `mc lint && mc build && mc check`
+4. `mc lint && mc build && mc check` (or `mc qc` before releases)
 5. Manual smoke if `lib/` face/export touched
 6. Update docs if behavior or structure changed
 

@@ -19,6 +19,9 @@ case "$cmd" in
   build) exec npm run build ;;
   lint) exec npm run lint ;;
   check) exec npm run check:practices ;;
+  qc) exec npm run qc ;;
+  qc-deep) exec npm run qc:deep ;;
+  qc-context7) exec npm run qc:context7 ;;
   exports)
     exec open "/Users/alexphoenix/projects/Face Aligntment "
     ;;
@@ -32,8 +35,11 @@ case "$cmd" in
     echo "  dev      Start Next.js dev server (default port 3000)"
     echo "  build    Production build"
     echo "  lint     ESLint"
-    echo "  check    Good-practices guard"
-    echo "  exports  Open Face Aligntment export folder"
+    echo "  check        Good-practices guard"
+    echo "  qc           Full parallel QC (M3 Max)"
+    echo "  qc-deep      QC + tsc --noEmit"
+    echo "  qc-context7  Context7 stack audit only"
+    echo "  exports      Open Face Aligntment export folder"
     echo "  cd       Open shell in project root"
     echo ""
     echo "Or: mc        → cd to project and open shell"

@@ -16,7 +16,8 @@ Read `docs/GOOD_PRACTICES.md` and `AGENTS.md` before non-trivial edits.
 - Surgical diffs only. Match TypeScript + Tailwind style. Use `@/` imports.
 - Document user-visible changes in README; architecture changes in `docs/STRUCTURE.md`.
 - New dev notes go in `docs/history/` or `docs/decisions/` — never `*_FIX.md` at repo root.
-- Pass `npm run lint`, `npm run build`, and `npm run check:practices` before considering work done.
+- Pass `npm run lint`, `npm audit --audit-level=high`, `npm run build`, and `npm run check:practices` before considering work done.
+- Local QC: `mc qc` (parallel on M3 Max 48GB). Context7: `docs/CONTEXT7.md`. Sub-agents: `docs/SUBAGENT_STRATEGY.md`.
 
 ## MUST NOT
 

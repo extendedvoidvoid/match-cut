@@ -53,6 +53,8 @@ After shell setup (see below):
 | `mc build` | Production build |
 | `mc lint` | ESLint |
 | `mc check` | Good-practices guard |
+| `mc qc` | Full parallel QC (lint + audit + Context7) |
+| `mc qc-deep` | QC + `tsc --noEmit` |
 | `mc exports` | Open `Face Aligntment /` sample exports |
 
 From repo: `./bin/mc <command>` or `npm run mc -- dev`
@@ -168,6 +170,9 @@ Details: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 | Doc | Contents |
 |-----|----------|
 | [docs/GOOD_PRACTICES.md](docs/GOOD_PRACTICES.md) | **Canonical MUST/MUST NOT** (CI-enforced) |
+| [docs/CONTEXT7.md](docs/CONTEXT7.md) | API key + Context7 setup |
+| [docs/HARDWARE.md](docs/HARDWARE.md) | M3 Max 48GB profile |
+| [docs/SUBAGENT_STRATEGY.md](docs/SUBAGENT_STRATEGY.md) | Parallel QC sub-agents |
 | [AGENTS.md](AGENTS.md) | Agent summary |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Setup + PR checklist |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Node, OS, browser, memory |

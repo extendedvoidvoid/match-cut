@@ -81,14 +81,26 @@ workers/      → heavy CPU off main thread (when introduced)
 
 ---
 
-## 7. Testing & CI
+## 7. Testing & CI (Option B)
 
 | Rule | Detail |
 |------|--------|
-| **MUST** pass `npm run lint` and `npm run build` before push | CI enforces on `main` |
+| **MUST** pass `npm run lint` and `npm run build` before push | CI on every PR |
+| **MUST** pass `npm audit --audit-level=high` on PR | `ci.yml` |
 | **MUST** pass `npm run check:practices` | Repo structure guard |
-| **SHOULD** add unit tests when changing `lib/imageAlignment.ts` or `lib/faceDetection.ts` | Vitest when test harness exists |
+| **MUST** run `mc qc` before major releases | Parallel lint + Context7 + audit on M3 Max |
+| **SHOULD** set `CONTEXT7_API_KEY` for scheduled QC | See `docs/CONTEXT7.md` |
+| **MUST** target hardware profile `m3-max-48gb` for local perf defaults | See `docs/HARDWARE.md` |
+| **SHOULD** use 4 parallel sub-agents for full QC | See `docs/SUBAGENT_STRATEGY.md` |
 | **MUST NOT** merge with failing CI | Fix or scope down |
+
+### Schedule
+
+| When | What |
+|------|------|
+| Push / PR | practices, lint, npm audit high, build |
+| Weekly Mon 06:00 UTC | `qc-scheduled.yml` full audit |
+| Monthly 1st 06:00 UTC | deep audit (`tsc --noEmit`) |
 
 ---
 

@@ -18,6 +18,12 @@ require_file "AGENTS.md"
 require_file "docs/GOOD_PRACTICES.md"
 require_file "docs/STRUCTURE.md"
 require_file "docs/REQUIREMENTS.md"
+require_file "docs/HARDWARE.md"
+require_file "docs/CONTEXT7.md"
+require_file "docs/SUBAGENT_STRATEGY.md"
+require_file "scripts/qc-audit.sh"
+require_file "scripts/qc-context7.sh"
+require_file ".github/workflows/qc-scheduled.yml"
 require_file ".nvmrc"
 require_file ".github/workflows/ci.yml"
 
@@ -27,10 +33,12 @@ while IFS= read -r -d '' f; do
   errors=$((errors + 1))
 done < <(find . -maxdepth 1 -type f \( -name '*_FIX.md' -o -name '*_FIXES.md' -o -name '*_PLAN.md' -o -name '*_ANALYSIS.md' \) -print0 2>/dev/null)
 
-if [[ ! -x "bin/mc" ]]; then
-  echo "FAIL: bin/mc must exist and be executable"
-  errors=$((errors + 1))
-fi
+for exe in bin/mc scripts/qc-audit.sh scripts/qc-context7.sh scripts/check-practices.sh; do
+  if [[ ! -x "$exe" ]]; then
+    echo "FAIL: $exe must exist and be executable"
+    errors=$((errors + 1))
+  fi
+done
 
 if [[ "$errors" -gt 0 ]]; then
   echo ""

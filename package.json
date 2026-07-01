@@ -4,11 +4,14 @@
   "description": "Auto-Aligned Match Cut Video Generator",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "NODE_OPTIONS='--max-old-space-size=8192' next dev --turbo",
+    "build": "NODE_OPTIONS='--max-old-space-size=8192' next build",
     "start": "next start",
     "lint": "next lint",
     "check:practices": "bash scripts/check-practices.sh",
+    "qc": "bash scripts/qc-audit.sh",
+    "qc:deep": "bash scripts/qc-audit.sh --deep",
+    "qc:context7": "bash scripts/qc-context7.sh",
     "mc": "bin/mc"
   },
   "dependencies": {
