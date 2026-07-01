@@ -60,7 +60,7 @@ case "$cmd" in
     echo "  qc-context7  Context7 stack audit only"
     echo "  fetch-film-grab  Film-grab pipeline (discover|plan|download|run|inventory|health)"
     echo "  cleanup      Ecosystem hygiene (manifest compact, optional --prune-qc)"
-    echo "  reel-artifact  60s artifact reel (2→3 img/s) from film-grab stills"
+    echo "  reel-artifact  Reel from film-grab (--fill fit|cover, --start-rate …)"
     echo "  exports      Open Face Aligntment export folder"
     echo "  cd       Open shell in project root"
     echo ""

@@ -212,8 +212,9 @@ def align_to_fixed_eyes(
     img_bgr: np.ndarray,
     left: tuple[float, float],
     right: tuple[float, float],
+    fill: str = "fit",
 ) -> np.ndarray:
-    """alignImageFull — eyes locked to EYE_TARGET_X/Y, fixed inter-eye distance."""
+    """Eye-lock then fit (letterbox/trails) or cover (fill 9:16, crop sides)."""
     h, w = img_bgr.shape[:2]
     ecx = (left[0] + right[0]) / 2.0
     ecy = (left[1] + right[1]) / 2.0
@@ -222,8 +223,13 @@ def align_to_fixed_eyes(
 
     eye_scale = EYE_TARGET_DIST / max(dist, 1.0)
     sw, sh = w * eye_scale, h * eye_scale
-    fit = min(CANVAS_W / sw, CANVAS_H / sh, 1.0)
-    s = eye_scale * fit
+    if fill == "cover":
+        # Fill 9:16 — no letterbox, trails mostly gone
+        canvas_scale = max(CANVAS_W / sw, CANVAS_H / sh)
+    else:
+        # Fit whole frame — letterbox stripes (artifact mode)
+        canvas_scale = min(CANVAS_W / sw, CANVAS_H / sh, 1.0)
+    s = eye_scale * canvas_scale
 
     cos_a = math.cos(-angle)
     sin_a = math.sin(-angle)
@@ -262,6 +268,7 @@ def render_reel(
     durations: list[float],
     out_path: Path,
     seed: int,
+    fill: str = "fit",
 ) -> dict:
     n = len(durations)
     qualified = filter_existing(qualified)
@@ -278,7 +285,7 @@ def render_reel(
             bgr = cv2.imread(q.path)
             if bgr is None:
                 raise RuntimeError(f"failed to read {q.path}")
-            aligned = align_to_fixed_eyes(bgr, q.left, q.right)
+            aligned = align_to_fixed_eyes(bgr, q.left, q.right, fill=fill)
             frame_path = tmp_path / f"frame_{i:0{pad}d}.png"
             cv2.imwrite(str(frame_path), aligned)
             concat_lines.append(f"file '{frame_path}'")
@@ -305,6 +312,7 @@ def render_reel(
         "eye_target": {"x": EYE_TARGET_X, "y": EYE_TARGET_Y, "dist_px": EYE_TARGET_DIST},
         "qualified_pool": len(qualified),
         "frames_reused": reused,
+        "fill": fill,
         "seed": seed,
     }
 
@@ -322,6 +330,12 @@ def main() -> int:
     parser.add_argument("--rescan", action="store_true", help="Rebuild qualified cache")
     parser.add_argument("--select-only", action="store_true", help="Only scan/filter, no render")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--fill",
+        choices=("fit", "cover"),
+        default="fit",
+        help="fit=letterbox trails (default); cover=fill 9:16 crop sides",
+    )
     args = parser.parse_args()
 
     images = collect_images(args.images)
@@ -355,7 +369,7 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    report = render_reel(qualified, durations, args.output, args.seed)
+    report = render_reel(qualified, durations, args.output, args.seed, fill=args.fill)
     print(json.dumps(report, indent=2))
     return 0
 
