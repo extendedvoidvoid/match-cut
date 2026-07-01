@@ -66,6 +66,11 @@ def normalize_url(url: str) -> str:
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
 
 
+def is_full_gallery_image(url: str) -> bool:
+    path = urlparse(normalize_url(url)).path
+    return "/photo-gallery/" in path and "/thumb/" not in path
+
+
 def slug_from_post_url(post_url: str) -> str:
     path = urlparse(post_url).path.strip("/")
     return path.split("/")[-1] or "unknown"
@@ -180,22 +185,26 @@ async def sitemap_post_urls(client: httpx.AsyncClient) -> list[str]:
 
 async def images_from_post(client: httpx.AsyncClient, post_url: str) -> list[str]:
     html = await fetch_text(client, post_url)
-    found = {normalize_url(m.group(0)) for m in GALLERY_IMG_RE.finditer(html)}
-    if found:
-        return sorted(found)
+    found = {
+        normalize_url(m.group(0))
+        for m in GALLERY_IMG_RE.finditer(html)
+        if is_full_gallery_image(m.group(0))
+    }
 
     # Fallback DOM parse (some pages use relative paths)
     tree = HTMLParser(html)
     for node in tree.css("a[href]"):
         href = node.attributes.get("href", "")
-        if "/photo-gallery/" in href and href.endswith(".jpg"):
-            found.add(normalize_url(href if href.startswith("http") else BASE + href))
+        if "/photo-gallery/" in href and href.endswith(".jpg") and "/thumb/" not in href:
+            url = normalize_url(href if href.startswith("http") else BASE + href)
+            if is_full_gallery_image(url):
+                found.add(url)
     return sorted(found)
 
 
 async def plan_manifest(
     out_dir: Path,
-    target_new: int,
+    target_total: int,
     max_films: int | None,
     rate_delay: float,
 ) -> dict[str, ImageEntry]:
@@ -216,8 +225,13 @@ async def plan_manifest(
             posts = posts[:max_films]
         print(f"posts in sitemap: {len(posts)}", file=sys.stderr)
 
-        existing_done = sum(1 for e in entries.values() if e.status == "done")
-        need = max(0, target_new - existing_done)
+        used_paths: set[tuple[str, str]] = set()
+        for film_dir in out_dir.iterdir():
+            if not film_dir.is_dir():
+                continue
+            for img in film_dir.glob("*.jpg"):
+                used_paths.add((film_dir.name, img.name))
+        need = max(0, target_total - len(used_paths))
 
         for i, post_url in enumerate(posts, 1):
             if need <= 0:
@@ -235,12 +249,17 @@ async def plan_manifest(
                 key = normalize_url(url)
                 if key in entries:
                     continue
+                fname = filename_from_url(key)
+                dest_key = (slug, fname)
+                if dest_key in used_paths:
+                    continue
                 entry = ImageEntry(
                     url=key,
                     film_slug=slug,
-                    filename=filename_from_url(key),
+                    filename=fname,
                 )
                 entries[key] = entry
+                used_paths.add(dest_key)
                 append_manifest(manifest_path, entry)
                 added += 1
                 need -= 1
@@ -351,7 +370,7 @@ async def cmd_run(args: argparse.Namespace) -> int:
     need = max(0, args.target - existing)
     print(f"on disk: {existing} | need: {need} | target: {args.target}", file=sys.stderr)
     if need > 0:
-        await plan_manifest(out_dir, need, args.max_films, args.delay)
+        await plan_manifest(out_dir, args.target, args.max_films, args.delay)
         await download_manifest(out_dir, args.workers, args.delay)
     else:
         print("target already met")
@@ -385,7 +404,7 @@ def main() -> int:
     p_disc.set_defaults(func=cmd_discover)
 
     p_plan = sub.add_parser("plan", help="Crawl sitemap and append image URLs to manifest")
-    p_plan.add_argument("--target", type=int, default=3000, help="New manifest entries to add")
+    p_plan.add_argument("--target", type=int, default=3000, help="Total unique images on disk to plan toward")
     p_plan.add_argument("--max-films", type=int, default=None, help="Cap films scanned")
     p_plan.set_defaults(func=cmd_plan)
 
