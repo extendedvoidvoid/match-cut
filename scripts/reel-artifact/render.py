@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Reproduce match-cut letterbox/stripe artifact reel from film-grab stills.
+"""Artifact reel — single-person, visible eyes only; all eyes locked to same coords.
 
-1 minute default, 2 images/sec ramping to 3 images/sec (linear).
-Uses alignImageFull geometry + MediaPipe eyes + mpeg4 encode (like insta_reel).
+1 minute default, 2 images/sec → 3 images/sec (linear ramp).
 """
 
 from __future__ import annotations
@@ -10,11 +9,11 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
 import random
 import subprocess
 import sys
 import tempfile
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import cv2
@@ -30,19 +29,28 @@ MODEL_URL = (
     "face_landmarker/float16/1/face_landmarker.task"
 )
 DEFAULT_IMAGES = ROOT / "assets" / "film-grab"
+DEFAULT_CACHE = SCRIPT_DIR / "qualified.jsonl"
 DEFAULT_OUT = Path.home() / "Downloads" / "insta_reel_artifact_60s.mp4"
 
 CANVAS_W, CANVAS_H = 540, 960
-TARGET_EYE_DIST = 0.35
-TARGET_EYE_Y = 0.4
+# Fixed eye anchor — every frame lands here (match-cut defaults)
+EYE_TARGET_X = CANVAS_W / 2.0
+EYE_TARGET_Y = CANVAS_H * 0.4
+EYE_TARGET_DIST = CANVAS_W * 0.35
+
+LEFT_EYE_IDX = (33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161)
+RIGHT_EYE_IDX = (362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384)
 
 
-def compute_durations(
-    total_sec: float,
-    start_rate: float,
-    end_rate: float,
-) -> list[float]:
-    """Linear rate ramp: rate(t) = start + (end-start)*t/total."""
+@dataclass
+class QualifiedImage:
+    path: str
+    left: tuple[float, float]
+    right: tuple[float, float]
+    eye_dist: float
+
+
+def compute_durations(total_sec: float, start_rate: float, end_rate: float) -> list[float]:
     durations: list[float] = []
     t = 0.0
     while t < total_sec - 1e-9:
@@ -52,7 +60,6 @@ def compute_durations(
             dt = total_sec - t
         durations.append(dt)
         t += dt
-    # Numeric drift fix
     scale = total_sec / sum(durations)
     return [d * scale for d in durations]
 
@@ -72,70 +79,165 @@ def ensure_model() -> Path:
     return MODEL_PATH
 
 
-def eye_points_from_face(landmarks, w: int, h: int) -> tuple[tuple[float, float], tuple[float, float]] | None:
-    # Face landmarker indices: outer eye corners
-    li, ri = 33, 263
-    if len(landmarks) <= max(li, ri):
-        return None
-    l, r = landmarks[li], landmarks[ri]
-    return (l.x * w, l.y * h), (r.x * w, r.y * h)
-
-
-def create_face_landmarker() -> vision.FaceLandmarker:
+def create_face_landmarker(max_faces: int = 3) -> vision.FaceLandmarker:
     options = vision.FaceLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=str(ensure_model())),
         running_mode=vision.RunningMode.IMAGE,
-        num_faces=1,
-        min_face_detection_confidence=0.4,
+        num_faces=max_faces,
+        min_face_detection_confidence=0.5,
+        min_face_presence_confidence=0.5,
+        min_tracking_confidence=0.5,
     )
     return vision.FaceLandmarker.create_from_options(options)
 
 
-def fallback_eyes(w: int, h: int) -> tuple[tuple[float, float], tuple[float, float]]:
-    """Center-third guess when no face — still produces letterbox artifacts."""
-    cx, cy = w * 0.5, h * 0.38
-    span = min(w, h) * 0.12
-    return (cx - span, cy), (cx + span, cy)
+def eye_center(landmarks, indices: tuple[int, ...], w: int, h: int) -> tuple[float, float] | None:
+    xs, ys = [], []
+    for idx in indices:
+        if idx >= len(landmarks):
+            return None
+        lm = landmarks[idx]
+        if not (0.0 <= lm.x <= 1.0 and 0.0 <= lm.y <= 1.0):
+            return None
+        xs.append(lm.x * w)
+        ys.append(lm.y * h)
+    if not xs:
+        return None
+    return sum(xs) / len(xs), sum(ys) / len(ys)
 
 
-def align_image_full(
+def validate_eyes(
+    left: tuple[float, float],
+    right: tuple[float, float],
+    w: int,
+    h: int,
+) -> str | None:
+    """Return None if valid, else rejection reason."""
+    for x, y in (left, right):
+        if x < 0 or x > w or y < 0 or y > h:
+            return "eyes_out_of_bounds"
+
+    dist = math.hypot(right[0] - left[0], right[1] - left[1])
+    min_d = min(w, h) * 0.05
+    max_d = max(w, h) * 0.55
+    if dist < min_d:
+        return "eyes_too_close"
+    if dist > max_d:
+        return "eyes_too_far"
+
+    # Eyes should be roughly horizontal (both visible, not profile)
+    angle_deg = abs(math.degrees(math.atan2(right[1] - left[1], right[0] - left[0])))
+    if angle_deg > 25:
+        return "eyes_not_level"
+
+    # Left eye must be left of right eye
+    if left[0] >= right[0]:
+        return "eyes_swapped_or_profile"
+
+    return None
+
+
+def analyze_image(path: Path, landmarker: vision.FaceLandmarker) -> QualifiedImage | None:
+    bgr = cv2.imread(str(path))
+    if bgr is None:
+        return None
+    h, w = bgr.shape[:2]
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    mp_img = mp_image.Image(image_format=mp_image.ImageFormat.SRGB, data=rgb)
+    res = landmarker.detect(mp_img)
+
+    if not res.face_landmarks or len(res.face_landmarks) != 1:
+        return None
+
+    lm = res.face_landmarks[0]
+    left = eye_center(lm, LEFT_EYE_IDX, w, h)
+    right = eye_center(lm, RIGHT_EYE_IDX, w, h)
+    if left is None or right is None:
+        return None
+
+    err = validate_eyes(left, right, w, h)
+    if err:
+        return None
+
+    dist = math.hypot(right[0] - left[0], right[1] - left[1])
+    return QualifiedImage(str(path), left, right, dist)
+
+
+def scan_qualified(
+    images: list[Path],
+    cache_path: Path,
+    workers: int,
+    rescan: bool,
+) -> list[QualifiedImage]:
+    if cache_path.exists() and not rescan:
+        loaded: list[QualifiedImage] = []
+        for line in cache_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            d = json.loads(line)
+            loaded.append(
+                QualifiedImage(
+                    d["path"],
+                    tuple(d["left"]),
+                    tuple(d["right"]),
+                    d["eye_dist"],
+                )
+            )
+        print(f"loaded {len(loaded)} qualified from cache", file=sys.stderr)
+        return loaded
+
+    qualified: list[QualifiedImage] = []
+    print(f"scanning {len(images)} images for 1 face + visible eyes…", file=sys.stderr)
+    landmarker = create_face_landmarker(max_faces=3)
+    try:
+        for i, path in enumerate(images, 1):
+            if i % 200 == 0:
+                print(f"  scanned {i}/{len(images)} qualified={len(qualified)}", file=sys.stderr)
+            q = analyze_image(path, landmarker)
+            if q:
+                qualified.append(q)
+    finally:
+        landmarker.close()
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with cache_path.open("w") as f:
+        for q in qualified:
+            f.write(json.dumps(asdict(q), separators=(",", ":")) + "\n")
+
+    print(f"qualified: {len(qualified)} / {len(paths)}", file=sys.stderr)
+    return qualified
+
+
+def align_to_fixed_eyes(
     img_bgr: np.ndarray,
     left: tuple[float, float],
     right: tuple[float, float],
-    cw: int = CANVAS_W,
-    ch: int = CANVAS_H,
 ) -> np.ndarray:
-    """Mirror match-cut alignImageFull — wide still in 9:16 → letterbox stripes."""
+    """alignImageFull — eyes locked to EYE_TARGET_X/Y, fixed inter-eye distance."""
     h, w = img_bgr.shape[:2]
     ecx = (left[0] + right[0]) / 2.0
     ecy = (left[1] + right[1]) / 2.0
     dist = math.hypot(right[0] - left[0], right[1] - left[1])
     angle = math.atan2(right[1] - left[1], right[0] - left[0])
 
-    target_dist = cw * TARGET_EYE_DIST
-    target_cx, target_cy = cw / 2.0, ch * TARGET_EYE_Y
-
-    eye_scale = target_dist / max(dist, 1.0)
+    eye_scale = EYE_TARGET_DIST / max(dist, 1.0)
     sw, sh = w * eye_scale, h * eye_scale
-    fit = min(cw / sw, ch / sh, 1.0)
-    final_scale = eye_scale * fit
+    fit = min(CANVAS_W / sw, CANVAS_H / sh, 1.0)
+    s = eye_scale * fit
 
     cos_a = math.cos(-angle)
     sin_a = math.sin(-angle)
-    s = final_scale
 
     t1 = np.array([[1, 0, -ecx], [0, 1, -ecy], [0, 0, 1]], dtype=np.float64)
     sc = np.array([[s, 0, 0], [0, s, 0], [0, 0, 1]], dtype=np.float64)
     rot = np.array([[cos_a, -sin_a, 0], [sin_a, cos_a, 0], [0, 0, 1]], dtype=np.float64)
-    t2 = np.array([[1, 0, target_cx], [0, 1, target_cy], [0, 0, 1]], dtype=np.float64)
-    m3 = t2 @ rot @ sc @ t1
-    m = m3[:2, :]
+    t2 = np.array([[1, 0, EYE_TARGET_X], [0, 1, EYE_TARGET_Y], [0, 0, 1]], dtype=np.float64)
+    m = (t2 @ rot @ sc @ t1)[:2, :]
 
-    # INTER_LINEAR keeps fringe stripes; mpeg4 will amplify
     return cv2.warpAffine(
         img_bgr,
         m,
-        (cw, ch),
+        (CANVAS_W, CANVAS_H),
         flags=cv2.INTER_LINEAR,
         borderMode=cv2.BORDER_CONSTANT,
         borderValue=(0, 0, 0),
@@ -143,118 +245,98 @@ def align_image_full(
 
 
 def render_reel(
-    images: list[Path],
+    qualified: list[QualifiedImage],
     durations: list[float],
     out_path: Path,
-    seed: int = 42,
+    seed: int,
 ) -> dict:
     n = len(durations)
-    if len(images) < n:
-        raise RuntimeError(f"need {n} images, found {len(images)}")
+    if len(qualified) < n:
+        raise RuntimeError(f"need {n} qualified images, have {len(qualified)}")
 
-    rng = random.Random(seed)
-    picks = rng.sample(images, n)
-
-    landmarker = create_face_landmarker()
-
+    picks = random.Random(seed).sample(qualified, n)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
     with tempfile.TemporaryDirectory(prefix="reel-artifact-") as tmp:
         tmp_path = Path(tmp)
         concat_lines: list[str] = []
-        stats = {"faces": 0, "fallback": 0}
 
-        for i, (img_path, dur) in enumerate(zip(picks, durations)):
-            frame_path = tmp_path / f"frame_{i:04d}.png"
-            bgr = cv2.imread(str(img_path))
+        for i, (q, dur) in enumerate(zip(picks, durations)):
+            bgr = cv2.imread(q.path)
             if bgr is None:
-                stats["fallback"] += 1
-                bgr = np.zeros((800, 1920, 3), dtype=np.uint8)
-                eyes = fallback_eyes(1920, 800)
-            else:
-                h, w = bgr.shape[:2]
-                rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                mp_img = mp_image.Image(image_format=mp_image.ImageFormat.SRGB, data=rgb)
-                res = landmarker.detect(mp_img)
-                if res.face_landmarks:
-                    eyes = eye_points_from_face(res.face_landmarks[0], w, h)
-                    stats["faces"] += 1
-                else:
-                    eyes = fallback_eyes(w, h)
-                    stats["fallback"] += 1
-                if eyes is None:
-                    eyes = fallback_eyes(w, h)
-                    stats["fallback"] += 1
-
-            aligned = align_image_full(bgr, eyes[0], eyes[1])
+                raise RuntimeError(f"failed to read {q.path}")
+            aligned = align_to_fixed_eyes(bgr, q.left, q.right)
+            frame_path = tmp_path / f"frame_{i:04d}.png"
             cv2.imwrite(str(frame_path), aligned)
             concat_lines.append(f"file '{frame_path}'")
             concat_lines.append(f"duration {dur:.6f}")
 
-        # concat demuxer requires last file repeated without duration
         concat_lines.append(f"file '{tmp_path / f'frame_{n-1:04d}.png'}'")
         concat_file = tmp_path / "concat.txt"
         concat_file.write_text("\n".join(concat_lines) + "\n")
 
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(concat_file),
-            "-c:v",
-            "mpeg4",
-            "-q:v",
-            "5",
-            "-pix_fmt",
-            "yuv420p",
-            str(out_path),
-        ]
-        subprocess.run(cmd, check=True)
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "concat", "-safe", "0", "-i", str(concat_file),
+                "-c:v", "mpeg4", "-q:v", "5", "-pix_fmt", "yuv420p",
+                str(out_path),
+            ],
+            check=True,
+        )
 
-    landmarker.close()
     return {
         "frames": n,
         "duration_sec": sum(durations),
-        "start_rate": 1 / durations[0] if durations else 0,
-        "end_rate": 1 / durations[-1] if durations else 0,
         "output": str(out_path),
-        **stats,
+        "eye_target": {"x": EYE_TARGET_X, "y": EYE_TARGET_Y, "dist_px": EYE_TARGET_DIST},
+        "qualified_pool": len(qualified),
+        "seed": seed,
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Artifact reel from film-grab stills")
+    parser = argparse.ArgumentParser(description="Artifact reel — single face, fixed eye coords")
     parser.add_argument("--images", type=Path, default=DEFAULT_IMAGES)
+    parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--duration", type=float, default=60.0)
-    parser.add_argument("--start-rate", type=float, default=2.0, help="Images/sec at t=0")
-    parser.add_argument("--end-rate", type=float, default=3.0, help="Images/sec at t=end")
+    parser.add_argument("--start-rate", type=float, default=2.0)
+    parser.add_argument("--end-rate", type=float, default=3.0)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--workers", type=int, default=int(__import__("os").environ.get("MATCHCUT_PARALLEL_JOBS", "8")))
+    parser.add_argument("--rescan", action="store_true", help="Rebuild qualified cache")
+    parser.add_argument("--select-only", action="store_true", help="Only scan/filter, no render")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     images = collect_images(args.images)
     durations = compute_durations(args.duration, args.start_rate, args.end_rate)
+    need = len(durations)
+
     print(
-        f"frames={len(durations)} duration={sum(durations):.2f}s "
-        f"rate {args.start_rate}→{args.end_rate} img/s images_pool={len(images)}",
+        f"frames={need} duration={sum(durations):.2f}s "
+        f"rate {args.start_rate}→{args.end_rate} pool={len(images)}",
         file=sys.stderr,
     )
-    if args.dry_run:
-        print(json.dumps({"frame_count": len(durations), "durations_sample": durations[:5]}, indent=2))
-        return 0
 
-    if len(images) < len(durations):
-        print(f"error: need {len(durations)} images, have {len(images)}", file=sys.stderr)
+    qualified = scan_qualified(images, args.cache, args.workers, args.rescan)
+
+    if args.dry_run or args.select_only:
+        print(json.dumps({
+            "frame_count": need,
+            "qualified": len(qualified),
+            "eye_target": {"x": EYE_TARGET_X, "y": EYE_TARGET_Y},
+            "cache": str(args.cache),
+        }, indent=2))
+        return 0 if len(qualified) >= need else 1
+
+    if len(qualified) < need:
+        print(f"error: need {need} qualified (1 face + eyes), have {len(qualified)}", file=sys.stderr)
+        print("run with --rescan after adding images, or lower --duration", file=sys.stderr)
         return 1
 
-    report = render_reel(images, durations, args.output, seed=args.seed)
+    report = render_reel(qualified, durations, args.output, args.seed)
     print(json.dumps(report, indent=2))
     return 0
 

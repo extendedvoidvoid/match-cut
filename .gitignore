@@ -62,3 +62,4 @@ coverage/
 assets/film-grab/
 .venv-film-grab/
 scripts/reel-artifact/face_landmarker.task
+scripts/reel-artifact/qualified.jsonl
