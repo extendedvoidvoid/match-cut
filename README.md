@@ -1,52 +1,160 @@
 # Match Cut Generator
 
-Auto-Aligned Match Cut Video Generator - Create smooth eye-aligned animations from your photos.
+Browser-based tool for creating eye-aligned match-cut animations from photos. Upload images, auto-align faces via MediaPipe, preview in real time, and export GIF or MP4.
+
+**Live:** [match-cut.vercel.app](https://match-cut.vercel.app/)
+
+**Origin:** Forked from [sanjogbora/match-cut](https://github.com/sanjogbora/match-cut). Local development copy lives at `/Users/alexphoenix/projects/match-cut`.
+
+---
 
 ## Features
 
-- **Automatic Face Detection**: Uses MediaPipe to detect faces and eye positions
-- **Perfect Eye Alignment**: Aligns all images so eyes stay in the same position
-- **Multiple Export Formats**: Export as GIF or MP4 with customizable settings
-- **Real-time Preview**: See your animation before exporting
-- **Browser-based Processing**: All processing happens locally - your images never leave your device
-- **Responsive Design**: Works on desktop and mobile devices
+- **Face detection** — MediaPipe Face Landmarker (in-browser)
+- **Eye alignment** — Full-frame or face-crop modes; eyes stay fixed across cuts
+- **Preview** — Live animation before export
+- **Export** — GIF or MP4 at 480p / 720p / 1080p
+- **Beat sync** — Optional music-driven frame timing
+- **Audio** — Built-in transition sounds or custom audio overlay
+- **Privacy** — Images never leave the browser
 
-## How to Use
+---
 
-1. **Upload Images**: Drag and drop or select multiple photos with visible faces
-2. **Automatic Processing**: The app detects faces and aligns them based on eye positions
-3. **Preview Animation**: Watch your match cut animation in real-time
-4. **Customize Settings**: Adjust frame duration, resolution, and format
-5. **Export**: Download your finished animation as GIF or MP4
+## Quick start
 
-## Technology Stack
+### Prerequisites
 
-- **Frontend**: Next.js 14, React 18, TypeScript
-- **Face Detection**: MediaPipe Face Landmarker
-- **Image Processing**: HTML Canvas API
-- **Video Export**: FFmpeg.wasm, WebCodecs API
-- **Styling**: Tailwind CSS
-- **Icons**: Lucide React
+See [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) for full system and browser requirements.
 
-## Local Development
+| Requirement | Minimum |
+|-------------|---------|
+| Node.js | 20.x (see `.nvmrc`) |
+| npm | 10+ |
+| Browser (dev) | Chrome or Edge recommended |
+
+### Install & run
 
 ```bash
+cd /Users/alexphoenix/projects/match-cut
+nvm use          # optional, if using nvm
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view the application.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Browser Compatibility
+### Scripts
 
-- **Chrome/Edge**: Full support (WebCodecs + FFmpeg.wasm)
-- **Firefox**: Limited support (FFmpeg.wasm only)
-- **Safari**: Limited support (FFmpeg.wasm only)
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run start` | Serve production build |
+| `npm run lint` | ESLint |
 
-## Privacy
+---
 
-This application processes all images locally in your browser. No images are uploaded to any server, ensuring complete privacy and security of your photos.
+## Project layout
+
+```
+match-cut/
+├── app/                    # Next.js App Router
+│   ├── page.tsx            # Main editor (orchestration)
+│   ├── layout.tsx
+│   ├── globals.css
+│   └── about/
+├── components/             # UI
+│   ├── ImageUpload.tsx
+│   ├── ImageGrid.tsx
+│   ├── AnimationPreview.tsx
+│   ├── ExportOptions.tsx
+│   └── ProcessingIndicator.tsx
+├── lib/                    # Core pipeline (browser-only)
+│   ├── faceDetection.ts    # MediaPipe
+│   ├── imageAlignment.ts   # Eye-aligned warping
+│   ├── advancedAlignment.ts
+│   ├── videoExport.ts      # GIF/MP4 (FFmpeg.wasm, WebCodecs)
+│   ├── beatDetection.ts    # Beat-sync timing
+│   ├── audioManager.ts
+│   ├── audioFilters.ts
+│   ├── types.ts
+│   └── utils.ts
+├── public/                 # Static assets (sounds, demo video)
+├── docs/
+│   ├── REQUIREMENTS.md
+│   ├── STRUCTURE.md
+│   ├── TROUBLESHOOTING.md
+│   └── history/            # Archived dev notes (*_FIX.md, etc.)
+├── AGENTS.md               # Rules for AI agents on this repo
+├── package.json
+└── next.config.js
+```
+
+Full module map: [docs/STRUCTURE.md](docs/STRUCTURE.md).
+
+---
+
+## Pipeline overview
+
+```
+Upload images
+    → faceDetection.ts (MediaPipe)
+    → imageAlignment.ts (eye lock)
+    → AnimationPreview (canvas frames)
+    → videoExport.ts (GIF or MP4)
+    → download as match-cut-{timestamp}.ext
+```
+
+Optional: `beatDetection.ts` + `audioManager.ts` for music-synced cuts and sound.
+
+---
+
+## Export naming
+
+Exports use millisecond timestamps from the browser:
+
+```
+match-cut-{Date.now()}.mp4
+match-cut-{Date.now()}.gif
+```
+
+Example: `match-cut-1780298643843.gif` → exported 2026-06-01 07:24:03 UTC.
+
+---
+
+## Browser support
+
+| Browser | Face align | MP4 | GIF |
+|---------|------------|-----|-----|
+| Chrome / Edge | Full | Full (WebCodecs) | Full (FFmpeg.wasm) |
+| Firefox | Full | Limited | Full |
+| Safari | Full | Limited | Full (may need network for FFmpeg) |
+
+Details: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
+---
+
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [AGENTS.md](AGENTS.md) | Agent workflow and hard rules |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Node, OS, browser, memory |
+| [docs/STRUCTURE.md](docs/STRUCTURE.md) | File and module reference |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common failures and fixes |
+| [docs/history/](docs/history/) | Archived implementation notes |
+
+---
+
+## Maturity roadmap (high level)
+
+1. **Basics** — README, AGENTS, structure, requirements *(current)*
+2. **Stability** — CI, tests, error UX, IndexedDB project save
+3. **Architecture** — Split `app/page.tsx` into hooks + workers
+4. **Product** — Presets, manual eye override, aspect ratios
+
+---
 
 ## License
 
-MIT License - feel free to use and modify for your projects.
+MIT — see upstream [sanjogbora/match-cut](https://github.com/sanjogbora/match-cut).
