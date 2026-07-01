@@ -32,6 +32,10 @@ case "$cmd" in
     fi
     exec "$PY" scripts/fetch-film-grab/fetch.py "$@"
     ;;
+  cleanup)
+    shift
+    exec bash scripts/ecosystem-cleanup.sh "$@"
+    ;;
   exports)
     exec open "/Users/alexphoenix/projects/Face Aligntment "
     ;;
@@ -49,7 +53,8 @@ case "$cmd" in
     echo "  qc           Full parallel QC (M3 Max)"
     echo "  qc-deep      QC + tsc --noEmit"
     echo "  qc-context7  Context7 stack audit only"
-    echo "  fetch-film-grab  Film-grab image pipeline (discover|plan|download|run)"
+    echo "  fetch-film-grab  Film-grab pipeline (discover|plan|download|run|health|cleanup)"
+    echo "  cleanup      Ecosystem hygiene (manifest compact, optional --prune-qc)"
     echo "  exports      Open Face Aligntment export folder"
     echo "  cd       Open shell in project root"
     echo ""

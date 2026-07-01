@@ -106,6 +106,31 @@ def rewrite_manifest(path: Path, entries: dict[str, ImageEntry]) -> None:
             f.write(json.dumps(asdict(entry), separators=(",", ":")) + "\n")
 
 
+def compact_manifest(out_dir: Path) -> tuple[int, int, dict[str, ImageEntry]]:
+    """Collapse legacy duplicate paths; prefer on-disk file, then done status."""
+    manifest_path = out_dir / MANIFEST_NAME
+    entries = load_manifest(manifest_path)
+    before = len(entries)
+
+    by_path: dict[tuple[str, str], ImageEntry] = {}
+    for entry in entries.values():
+        key = (entry.film_slug, entry.filename)
+        dest = out_dir / entry.film_slug / entry.filename
+        current = by_path.get(key)
+        if current is None:
+            by_path[key] = entry
+            continue
+        current_on_disk = dest.exists() and dest.stat().st_size > 0
+        if current_on_disk and entry.status == "done":
+            by_path[key] = entry
+        elif entry.status == "done" and current.status != "done":
+            by_path[key] = entry
+
+    compact = {normalize_url(e.url): e for e in by_path.values()}
+    rewrite_manifest(manifest_path, compact)
+    return before, len(compact), compact
+
+
 def count_local_images(root: Path) -> int:
     if not root.exists():
         return 0
@@ -338,6 +363,117 @@ async def download_manifest(
     print(f"done={done} failed={failed} total={len(entries)}", file=sys.stderr)
 
 
+def audit_health(out_dir: Path) -> dict[str, object]:
+    manifest_path = out_dir / MANIFEST_NAME
+    entries = load_manifest(manifest_path) if manifest_path.exists() else {}
+    paths: set[tuple[str, str]] = set()
+    status_counts: dict[str, int] = {}
+    missing = 0
+    for entry in entries.values():
+        status_counts[entry.status] = status_counts.get(entry.status, 0) + 1
+        paths.add((entry.film_slug, entry.filename))
+        dest = out_dir / entry.film_slug / entry.filename
+        if entry.status == "done" and (not dest.exists() or dest.stat().st_size == 0):
+            missing += 1
+
+    on_disk = count_local_images(out_dir)
+    film_dirs = sum(1 for p in out_dir.iterdir() if p.is_dir()) if out_dir.exists() else 0
+
+    return {
+        "output_dir": str(out_dir),
+        "on_disk": on_disk,
+        "film_dirs": film_dirs,
+        "manifest_lines": sum(1 for _ in manifest_path.open()) if manifest_path.exists() else 0,
+        "manifest_unique_urls": len(entries),
+        "manifest_unique_paths": len(paths),
+        "manifest_dup_paths": max(0, len(entries) - len(paths)),
+        "status": status_counts,
+        "missing_done_files": missing,
+        "sitemap_roots": list(SITEMAP_ROOTS),
+        "discover_paths": [str(p) for p in DISCOVER_PATHS],
+        "api_keys": {
+            "context7_local": bool(os.environ.get("CONTEXT7_API_KEY")),
+            "film_grab_output": os.environ.get("FILM_GRAB_OUTPUT", str(DEFAULT_OUT)),
+        },
+        "fallbacks": {
+            "sitemap": "Jetpack sitemap.xml → recursive index → leaf urlsets",
+            "image_parse": "regex gallery URLs, then selectolax <a href> DOM fallback",
+            "download": "skip existing file on disk; tenacity retry on network errors",
+            "thumbs": "skip /thumb/ paths (full-res only)",
+        },
+    }
+
+
+async def probe_links() -> dict[str, str]:
+    results: dict[str, str] = {}
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        for url in (*SITEMAP_ROOTS, f"{BASE}/"):
+            try:
+                r = await client.head(url)
+                results[url] = str(r.status_code)
+            except httpx.HTTPError as exc:
+                results[url] = f"error: {exc}"
+    return results
+
+
+def cmd_health(args: argparse.Namespace) -> int:
+    out_dir = Path(args.output).expanduser().resolve()
+    report = audit_health(out_dir)
+    print(json.dumps(report, indent=2))
+    issues = 0
+    if report["manifest_dup_paths"]:
+        issues += 1
+        print("issue: manifest has duplicate paths — run `compact`", file=sys.stderr)
+    if report["missing_done_files"]:
+        issues += 1
+        print("issue: done entries missing on disk — run `download`", file=sys.stderr)
+    if not report["on_disk"]:
+        issues += 1
+        print("issue: no images on disk", file=sys.stderr)
+    return 1 if issues else 0
+
+
+async def cmd_health_online(args: argparse.Namespace) -> int:
+    code = cmd_health(args)
+    links = await probe_links()
+    print("link_probe:", json.dumps(links, indent=2))
+    for url, status in links.items():
+        if not str(status).startswith("2"):
+            print(f"warn: {url} -> {status}", file=sys.stderr)
+            code = 1
+    return code
+
+
+def cmd_compact(args: argparse.Namespace) -> int:
+    out_dir = Path(args.output).expanduser().resolve()
+    before, after, _ = compact_manifest(out_dir)
+    on_disk = count_local_images(out_dir)
+    print(f"compacted manifest: {before} -> {after} urls | on disk: {on_disk}")
+    return 0
+
+
+def cmd_cleanup(args: argparse.Namespace) -> int:
+    out_dir = Path(args.output).expanduser().resolve()
+    before, after, entries = compact_manifest(out_dir)
+
+    # Re-mark pending for failed entries so download can retry
+    retried = 0
+    for key, entry in list(entries.items()):
+        if entry.status == "failed":
+            entry.status = "pending"
+            entries[key] = entry
+            retried += 1
+    if retried:
+        rewrite_manifest(out_dir / MANIFEST_NAME, entries)
+
+    pending = sum(1 for e in entries.values() if e.status == "pending")
+    on_disk = count_local_images(out_dir)
+    print(f"cleanup: manifest {before} -> {after} | failed->pending: {retried} | pending: {pending} | on_disk: {on_disk}")
+    if pending and args.retry:
+        return asyncio.run(cmd_download(args))
+    return 0
+
+
 def cmd_discover(_: argparse.Namespace) -> int:
     found = discover_existing()
     if not found:
@@ -415,6 +551,19 @@ def main() -> int:
     p_run.add_argument("--target", type=int, default=3000, help="Total images on disk")
     p_run.add_argument("--max-films", type=int, default=None)
     p_run.set_defaults(func=cmd_run)
+
+    p_health = sub.add_parser("health", help="Audit folders, manifest, keys, fallbacks (local)")
+    p_health.set_defaults(func=cmd_health)
+
+    p_health_net = sub.add_parser("health-online", help="health + probe film-grab.com links")
+    p_health_net.set_defaults(func=cmd_health_online)
+
+    p_compact = sub.add_parser("compact", help="Deduplicate manifest by on-disk path")
+    p_compact.set_defaults(func=cmd_compact)
+
+    p_cleanup = sub.add_parser("cleanup", help="compact manifest, reset failed->pending, optional retry")
+    p_cleanup.add_argument("--retry", action="store_true", help="Download pending after cleanup")
+    p_cleanup.set_defaults(func=cmd_cleanup)
 
     args = parser.parse_args()
     fn = args.func
