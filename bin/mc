@@ -36,6 +36,11 @@ case "$cmd" in
     shift
     exec bash scripts/ecosystem-cleanup.sh "$@"
     ;;
+  reel-artifact)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/reel-artifact/render.py "$@"
+    ;;
   exports)
     exec open "/Users/alexphoenix/projects/Face Aligntment "
     ;;
@@ -55,6 +60,7 @@ case "$cmd" in
     echo "  qc-context7  Context7 stack audit only"
     echo "  fetch-film-grab  Film-grab pipeline (discover|plan|download|run|health|cleanup)"
     echo "  cleanup      Ecosystem hygiene (manifest compact, optional --prune-qc)"
+    echo "  reel-artifact  60s artifact reel (2→3 img/s) from film-grab stills"
     echo "  exports      Open Face Aligntment export folder"
     echo "  cd       Open shell in project root"
     echo ""

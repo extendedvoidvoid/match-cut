@@ -61,3 +61,4 @@ coverage/
 # Film-grab assets (large; use scripts/fetch-film-grab)
 assets/film-grab/
 .venv-film-grab/
+scripts/reel-artifact/face_landmarker.task
