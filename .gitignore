@@ -59,7 +59,8 @@ coverage/
 *.temp
 
 # Film-grab assets (large; use scripts/fetch-film-grab)
-assets/film-grab/
+assets/film-grab/**
+!assets/film-grab/inventory.csv
 .venv-film-grab/
 scripts/reel-artifact/face_landmarker.task
 scripts/reel-artifact/qualified.jsonl

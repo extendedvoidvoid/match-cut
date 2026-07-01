@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import csv
 import hashlib
 import inspect
 import json
@@ -16,6 +17,7 @@ import os
 import re
 import sys
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Iterable
@@ -31,9 +33,12 @@ SITEMAP_ROOTS = (
     f"{BASE}/sitemap.xml",
     f"{BASE}/sitemap-index-1.xml",
 )
-DEFAULT_OUT = Path(__file__).resolve().parents[2] / "assets" / "film-grab"
+ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUT = ROOT / "assets" / "film-grab"
 MANIFEST_NAME = "manifest.jsonl"
+INVENTORY_NAME = "inventory.csv"
 STATE_NAME = "state.json"
+QUALIFIED_CACHE = ROOT / "scripts" / "reel-artifact" / "qualified.jsonl"
 
 GALLERY_IMG_RE = re.compile(
     r"https?://film-grab\.com/wp-content/uploads/photo-gallery/[^\"'\s>]+\.jpg",
@@ -474,6 +479,114 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     return 0
 
 
+def load_qualified_paths() -> set[str]:
+    paths: set[str] = set()
+    if not QUALIFIED_CACHE.exists():
+        return paths
+    with QUALIFIED_CACHE.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            data = json.loads(line)
+            paths.add(str(Path(data["path"]).resolve()))
+    return paths
+
+
+def load_inventory_marks(csv_path: Path) -> dict[str, dict[str, str]]:
+    """Preserve user columns when regenerating inventory."""
+    marks: dict[str, dict[str, str]] = {}
+    if not csv_path.exists():
+        return marks
+    with csv_path.open(newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            key = row.get("local_path") or row.get("image_id", "")
+            if key:
+                marks[key] = {
+                    "marked_delete": row.get("marked_delete", ""),
+                    "notes": row.get("notes", ""),
+                }
+    return marks
+
+
+def cmd_inventory(args: argparse.Namespace) -> int:
+    out_dir = Path(args.output).expanduser().resolve()
+    manifest_path = out_dir / MANIFEST_NAME
+    csv_path = Path(args.csv).expanduser().resolve() if args.csv else out_dir / INVENTORY_NAME
+
+    entries = load_manifest(manifest_path)
+    qualified = load_qualified_paths()
+    preserved = load_inventory_marks(csv_path)
+    generated_at = datetime.now(timezone.utc).isoformat()
+
+    rows: list[dict[str, str]] = []
+    seen_paths: set[tuple[str, str]] = set()
+
+    for entry in entries.values():
+        dest = out_dir / entry.film_slug / entry.filename
+        path_key = (entry.film_slug, entry.filename)
+        if path_key in seen_paths:
+            continue
+        seen_paths.add(path_key)
+
+        exists = dest.is_file() and dest.stat().st_size > 0
+        local_path = str(dest.resolve()) if exists else str(dest)
+        image_id = f"{entry.film_slug}/{entry.filename}"
+        prev = preserved.get(local_path) or preserved.get(image_id, {})
+
+        size = ""
+        sha = entry.sha256 or ""
+        if exists:
+            st = dest.stat()
+            size = str(st.st_size)
+            if not sha:
+                sha = hashlib.sha256(dest.read_bytes()).hexdigest()
+
+        rows.append({
+            "image_id": image_id,
+            "film_slug": entry.film_slug,
+            "filename": entry.filename,
+            "local_path": local_path,
+            "source_url": entry.url,
+            "bytes": size or str(entry.bytes or ""),
+            "sha256": sha,
+            "manifest_status": entry.status,
+            "on_disk": "yes" if exists else "no",
+            "qualified_reel": "yes" if local_path in qualified else "no",
+            "marked_delete": prev.get("marked_delete", ""),
+            "notes": prev.get("notes", ""),
+            "inventory_generated_at": generated_at,
+        })
+
+    rows.sort(key=lambda r: (r["film_slug"], r["filename"]))
+
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "image_id",
+        "film_slug",
+        "filename",
+        "local_path",
+        "source_url",
+        "bytes",
+        "sha256",
+        "manifest_status",
+        "on_disk",
+        "qualified_reel",
+        "marked_delete",
+        "notes",
+        "inventory_generated_at",
+    ]
+    with csv_path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    on_disk = sum(1 for r in rows if r["on_disk"] == "yes")
+    print(f"inventory: {len(rows)} rows | on_disk={on_disk} | {csv_path}")
+    return 0
+
+
 def cmd_discover(_: argparse.Namespace) -> int:
     found = discover_existing()
     if not found:
@@ -564,6 +677,14 @@ def main() -> int:
     p_cleanup = sub.add_parser("cleanup", help="compact manifest, reset failed->pending, optional retry")
     p_cleanup.add_argument("--retry", action="store_true", help="Download pending after cleanup")
     p_cleanup.set_defaults(func=cmd_cleanup)
+
+    p_inv = sub.add_parser("inventory", help="Write inventory.csv (track downloads; preserve marked_delete)")
+    p_inv.add_argument(
+        "--csv",
+        default=None,
+        help=f"CSV path (default: <output>/{INVENTORY_NAME})",
+    )
+    p_inv.set_defaults(func=cmd_inventory)
 
     args = parser.parse_args()
     fn = args.func

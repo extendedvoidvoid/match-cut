@@ -244,6 +244,19 @@ def align_to_fixed_eyes(
     )
 
 
+def filter_existing(qualified: list[QualifiedImage]) -> list[QualifiedImage]:
+    return [q for q in qualified if Path(q.path).is_file()]
+
+
+def pick_frames(qualified: list[QualifiedImage], n: int, seed: int) -> list[QualifiedImage]:
+    if not qualified:
+        raise RuntimeError("no qualified images on disk")
+    rng = random.Random(seed)
+    if n <= len(qualified):
+        return rng.sample(qualified, n)
+    return rng.choices(qualified, k=n)
+
+
 def render_reel(
     qualified: list[QualifiedImage],
     durations: list[float],
@@ -251,11 +264,11 @@ def render_reel(
     seed: int,
 ) -> dict:
     n = len(durations)
-    if len(qualified) < n:
-        raise RuntimeError(f"need {n} qualified images, have {len(qualified)}")
-
-    picks = random.Random(seed).sample(qualified, n)
+    qualified = filter_existing(qualified)
+    picks = pick_frames(qualified, n, seed)
+    reused = n > len(qualified)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    pad = max(4, len(str(n)))
 
     with tempfile.TemporaryDirectory(prefix="reel-artifact-") as tmp:
         tmp_path = Path(tmp)
@@ -266,12 +279,12 @@ def render_reel(
             if bgr is None:
                 raise RuntimeError(f"failed to read {q.path}")
             aligned = align_to_fixed_eyes(bgr, q.left, q.right)
-            frame_path = tmp_path / f"frame_{i:04d}.png"
+            frame_path = tmp_path / f"frame_{i:0{pad}d}.png"
             cv2.imwrite(str(frame_path), aligned)
             concat_lines.append(f"file '{frame_path}'")
             concat_lines.append(f"duration {dur:.6f}")
 
-        concat_lines.append(f"file '{tmp_path / f'frame_{n-1:04d}.png'}'")
+        concat_lines.append(f"file '{tmp_path / f'frame_{n-1:0{pad}d}.png'}'")
         concat_file = tmp_path / "concat.txt"
         concat_file.write_text("\n".join(concat_lines) + "\n")
 
@@ -291,6 +304,7 @@ def render_reel(
         "output": str(out_path),
         "eye_target": {"x": EYE_TARGET_X, "y": EYE_TARGET_Y, "dist_px": EYE_TARGET_DIST},
         "qualified_pool": len(qualified),
+        "frames_reused": reused,
         "seed": seed,
     }
 
@@ -331,10 +345,15 @@ def main() -> int:
         }, indent=2))
         return 0 if len(qualified) >= need else 1
 
-    if len(qualified) < need:
-        print(f"error: need {need} qualified (1 face + eyes), have {len(qualified)}", file=sys.stderr)
-        print("run with --rescan after adding images, or lower --duration", file=sys.stderr)
+    qualified = filter_existing(qualified)
+    if not qualified:
+        print("error: no qualified images on disk", file=sys.stderr)
         return 1
+    if len(qualified) < need:
+        print(
+            f"warn: need {need} frames, have {len(qualified)} unique — will reuse picks",
+            file=sys.stderr,
+        )
 
     report = render_reel(qualified, durations, args.output, args.seed)
     print(json.dumps(report, indent=2))
