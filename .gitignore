@@ -61,6 +61,16 @@ coverage/
 # Film-grab assets (large; use scripts/fetch-film-grab)
 assets/film-grab/**
 !assets/film-grab/inventory.csv
+assets/film-grab/.see-cache/
 .venv-film-grab/
 scripts/reel-artifact/face_landmarker.task
 scripts/reel-artifact/qualified.jsonl
+scripts/reel-artifact/*.task
+exports/reels/
+exports/vertical_test_A/
+exports/vertical_ready/
+exports/vertical_sources/
+# Flat tray of symlinks (mc see) — regenerate with scripts/see_exports.sh
+SEE/
+__pycache__/
+*.pyc

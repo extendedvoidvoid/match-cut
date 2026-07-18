@@ -1,0 +1,33 @@
+# tools/vertical config — CLI flags override these values.
+# vf (locked): scale cover + center crop + format=yuv420p
+
+output_dir: ./out_vertical
+width: 1080
+height: 1920
+strategy: center_crop
+extensions:
+  - .mp4
+  - .mov
+  - .mkv
+  - .avi
+  - .m4v
+
+encode:
+  prefer:
+    - h264_videotoolbox
+    - hevc_videotoolbox
+    - libx264
+  libx264:
+    crf: 18
+    preset: slow
+  videotoolbox_h264:
+    video_bitrate: "6M"
+  videotoolbox_hevc:
+    video_bitrate: "5M"
+  audio:
+    codec: aac
+    bitrate: "192k"
+
+logging:
+  level: INFO
+  file: ./out_vertical/vertical_reframe.log

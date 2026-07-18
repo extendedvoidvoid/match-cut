@@ -146,12 +146,8 @@ export default function AboutPage() {
             <div>
               <div className="bg-white card p-2">
                 <div className="relative w-full rounded-lg overflow-hidden">
-                  {/* Landscape original kept at /effect demo.mp4 — template archive.
-                      Vertical 9:16 from tools/vertical center_crop (Option B).
-                      Restore: swap src back to "/effect demo.mp4"
-                      Version: docs/history/site_versions/about_page.tsx.*.bak */}
                   <video
-                    src="/effect-demo-vertical.mp4"
+                    src="/effect demo.mp4"
                     autoPlay
                     loop
                     muted

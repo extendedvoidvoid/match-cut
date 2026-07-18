@@ -32,6 +32,33 @@ case "$cmd" in
     fi
     exec "$PY" scripts/fetch-film-grab/fetch.py "$@"
     ;;
+  classify-pass-a)
+    shift
+    # MediaPipe lives on system/python3; not film-grab venv
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/fetch-film-grab/classify_pass_a.py "$@"
+    ;;
+  classify-pass-c)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/fetch-film-grab/classify_pass_c.py "$@"
+    ;;
+  discover-genre)
+    shift
+    VENV_PY="$ROOT/.venv-film-grab/bin/python"
+    if [[ -x "$VENV_PY" ]]; then PY="$VENV_PY"; else PY="${MATCHCUT_PYTHON:-python3}"; fi
+    exec "$PY" scripts/fetch-film-grab/discover_genre.py "$@"
+    ;;
+  enrich-films)
+    shift
+    VENV_PY="$ROOT/.venv-film-grab/bin/python"
+    if [[ -x "$VENV_PY" ]]; then
+      PY="$VENV_PY"
+    else
+      PY="${MATCHCUT_PYTHON:-python3}"
+    fi
+    exec "$PY" scripts/fetch-film-grab/enrich_films.py "$@"
+    ;;
   cleanup)
     shift
     exec bash scripts/ecosystem-cleanup.sh "$@"
@@ -41,8 +68,74 @@ case "$cmd" in
     PY="${MATCHCUT_PYTHON:-python3}"
     exec "$PY" scripts/reel-artifact/render.py "$@"
     ;;
-  exports)
-    exec open "/Users/alexphoenix/projects/Face Aligntment "
+  reel-closeup)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/reel-artifact/closeup.py "$@"
+    ;;
+  reel-paysage)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/reel-artifact/paysage.py "$@"
+    ;;
+  reel-poster-pair)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/reel-artifact/poster_pair.py "$@"
+    ;;
+  reel-triplet)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/reel-artifact/triplet.py "$@"
+    ;;
+  reel-poster-montage)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/reel-artifact/poster_montage.py "$@"
+    ;;
+  reel-face-montage)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/reel-artifact/face_montage.py "$@"
+    ;;
+  reel-fx-mix)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/reel-artifact/fx_mix.py "$@"
+    ;;
+  fetch-posters)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    cd "$ROOT/scripts/fetch-posters" && exec "$PY" fetch.py "$@"
+    ;;
+  renumber-exports)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/reel-artifact/renumber_exports.py "$@"
+    ;;
+  lmstudio)
+    shift
+    exec bash scripts/lmstudio/ctl.sh "$@"
+    ;;
+  module)
+    shift
+    PY="${MATCHCUT_PYTHON:-python3}"
+    exec "$PY" scripts/modules/cli.py "$@"
+    ;;
+  exports|see|see-exports)
+    # SEE trays by lane — default essay (not VJ). See docs/history/LANES.md
+    # mc see | mc see vj | mc see all | mc see list
+    shift || true
+    exec bash "$ROOT/scripts/see_exports.sh" open "$@"
+    ;;
+  see-vj)
+    exec bash "$ROOT/scripts/see_exports.sh" open vj
+    ;;
+  see-essay)
+    exec bash "$ROOT/scripts/see_exports.sh" open essay
+    ;;
+  exports-tree)
+    exec open "$ROOT/exports"
     ;;
   cd|"")
     exec "${SHELL:-/bin/zsh}"
@@ -58,10 +151,27 @@ case "$cmd" in
     echo "  qc           Full parallel QC (M3 Max)"
     echo "  qc-deep      QC + tsc --noEmit"
     echo "  qc-context7  Context7 stack audit only"
-    echo "  fetch-film-grab  Film-grab pipeline (discover|plan|download|run|inventory|health)"
+    echo "  fetch-film-grab  Film-grab (discover|plan|download|run|inventory|audit|enrich-manifest|health)"
+    echo "  classify-pass-a  MediaPipe labels → classifications.jsonl (keep-all)"
+    echo "  classify-pass-c  VL has_kiss on multi-face candidates (OpenRouter/Mistral/LiteLLM)"
+    echo "  enrich-films     Film post meta + gallery URLs → films.jsonl (home IP)"
     echo "  cleanup      Ecosystem hygiene (manifest compact, optional --prune-qc)"
-    echo "  reel-artifact  Reel from film-grab (--fill fit|cover, --start-rate …)"
-    echo "  exports      Open Face Aligntment export folder"
+    echo "  reel-artifact  Reel (--pool all --fill extend --vj, --start-rate 12 --end-rate 24 --ramp-until 30)"
+    echo "  reel-closeup   Body-part closeups (--pool all --start-rate 1 --end-rate 30, no text)"
+    echo "  reel-paysage      Face extreme + landscape bg (--pool all --start-rate 1 --end-rate 30)"
+    echo "  reel-poster-pair  Face → textless poster 50/50 (unique poster_path each time)"
+    echo "  reel-triplet      Face → paysage → textless poster (equal thirds)"
+    echo "  reel-poster-montage  Textless posters 6→30fps, 10%→100% centered scale"
+    echo "  reel-face-montage    Eye-lock faces + sacred-geometry smear, biggest unused stills"
+    echo "  reel-fx-mix          Mix smudge reel + on/off negative (or interleave/blend two reels)"
+    echo "  fetch-posters     TMDB (match-films | bulk --target 10000 | purge-typed | status)"
+    echo "  lmstudio          LM Studio (status | load-vision | benchmark | qc-batch | env-write)"
+    echo "  module            Feature modules (list|show|run|mix|apply) — experiments as mixable modules"
+    echo "  renumber-exports  Assign 001_ prefixes to primary reels"
+    echo "  see | exports     Essay tray SEE/ (vertical + site) — NOT VJ reels"
+    echo "  see vj | see-vj   VJ ~1min reels tray only"
+    echo "  see all           Both lanes (debug)"
+    echo "  exports-tree      Open raw exports/ folder tree"
     echo "  cd       Open shell in project root"
     echo ""
     echo "Or: mc        → cd to project and open shell"
