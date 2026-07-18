@@ -24,7 +24,7 @@ Match-cut monorepo **hosts tools**, but workstreams are **not the same product**
 | `match-cut` reels / modules VJ | VJ |
 | `match-cut` `tools/vertical` | Essay / Station F reframe |
 | `album-video-creator` (César+) | Album cover essay (music) |
-| Fashion show 16:9 → 9:16 | Essay input — **same César+ logo/voice/subs/YT as album essay** (see SHARED_INVENTORY) |
+| Fashion show 16:9 → 9:16 | Essay input — **same César+ logo/voice/subs/YT as album essay** (see SHARED_INVENTORY) · VO register: Menkes + 3 clothes (`album-video-creator/docs/FASHION_MENKES_VOICE.md`) |
 
 ## Station F one-pager (CraftCut) — 3 phone videos
 
