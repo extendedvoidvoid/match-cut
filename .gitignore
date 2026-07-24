@@ -70,7 +70,20 @@ exports/reels/
 exports/vertical_test_A/
 exports/vertical_ready/
 exports/vertical_sources/
+exports/debug/
+exports/manifests/
+exports/reference/
+exports/INDEX.txt
+exports/MISSING.txt
+exports/registry.json
+# Poster bulk (scripts/fetch-posters); meta JSONL may live on VJ branch only
+assets/movie-posters/bulk/
+assets/movie-posters/by-slug/
+assets/movie-posters/*.jsonl
+assets/movie-posters/*.json
+public/effect-demo-vertical.mp4
 # Flat tray of symlinks (mc see) — regenerate with scripts/see_exports.sh
 SEE/
 __pycache__/
 *.pyc
+.aider*
