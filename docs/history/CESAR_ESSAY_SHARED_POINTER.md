@@ -20,3 +20,6 @@
 `~/AlbumVideos/exports/*Chanel_Marseille*`
 
 Fashion work reuses this stack. Match-cut only adds **16:9→9:16 geometry** (title-card safe). Not a second brand.
+
+**Reframe CLI (2026-07-25):** `~/projects/album-video-creator/tools/vertical/`
+**VJ modules:** `~/projects/modul9`

@@ -2,6 +2,8 @@
 
 **Private.** Names TBD by César. No public branding in this file beyond function words.
 
+> **Migrated 2026-07-25:** reframe → `album-video-creator/tools/vertical` · VJ modules → `modul9` · photo app stays. See `docs/history/MIGRATE_SPLIT.md`.
+
 ## Intent
 
 `feat/fashion-essay-vertical` is an **incubator**, not permanent second product inside match-cut forever.
@@ -17,13 +19,12 @@ VJ may migrate separately (or stay match-cut) — **do not force one app for bot
 
 ## Phases
 
-### NOW (this branch)
+### NOW (post-migrate)
 
 ```text
-match-cut monorepo
-  ├── client photo match-cut          # sacred — do not break export contract
-  ├── film-grab / classify / reels    # stay; do not reimplement as reframe
-  └── tools/vertical/                 # temporary home for center_crop v1
+match-cut          → photo client only (sacred)
+album-video-creator → essay + tools/vertical reframe
+modul9              → VJ modules / reel experiments
 ```
 
 ### NEXT (core green)

@@ -1,7 +1,7 @@
 # Migration split manifest — match-cut incubator → homes
 
 **Date:** 2026-07-25  
-**Status:** Phase 0 freeze  
+**Status:** Phases 0–3 executed locally (modul9 remote optional)  
 **Plan:** session plan — essay → `album-video-creator` · VJ → `modul9` · photo stays
 
 ## Destinations
