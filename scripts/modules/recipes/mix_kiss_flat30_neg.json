@@ -1,0 +1,47 @@
+{
+  "id": "mix.kiss_flat30_neg",
+  "type": "mix",
+  "version": "1.0.0",
+  "title": "Kiss geo + flat 30 + negative toggle",
+  "status": "experiment",
+  "parents": [
+    "select.filter_kiss_geo",
+    "select.sort_mouth_close",
+    "render.flat_rate",
+    "fx.negative_toggle"
+  ],
+  "graph": [
+    {
+      "module": "select.filter_kiss_geo",
+      "params": {
+        "label": "kiss_geo"
+      }
+    },
+    {
+      "module": "select.sort_mouth_close",
+      "params": {
+        "key": "mouth_dist_norm",
+        "order": "asc"
+      }
+    },
+    {
+      "module": "render.flat_rate",
+      "params": {
+        "rate": 30,
+        "duration": 60
+      }
+    },
+    {
+      "module": "fx.negative_toggle",
+      "params": {
+        "mode": "negative-toggle"
+      }
+    }
+  ],
+  "created_at": "2026-07-17T23:53:00.306586+00:00",
+  "outputs": [
+    "exports/reels/",
+    "exports/manifests/",
+    "assets/film-grab/pools/"
+  ]
+}

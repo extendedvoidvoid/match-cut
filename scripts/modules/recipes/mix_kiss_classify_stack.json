@@ -1,0 +1,36 @@
+{
+  "id": "mix.kiss_classify_stack",
+  "type": "mix",
+  "version": "1.0.0",
+  "title": "Pass A faces + mouth kiss_geo",
+  "status": "experiment",
+  "parents": [
+    "classify.pass_a_faces",
+    "classify.kiss_mouth_geo"
+  ],
+  "graph": [
+    {
+      "module": "classify.pass_a_faces",
+      "params": {
+        "skip_hands": true,
+        "regeo": false,
+        "force": false
+      }
+    },
+    {
+      "module": "classify.kiss_mouth_geo",
+      "params": {
+        "tau_contact": 0.5,
+        "tau_imminent": 1.2,
+        "tau_intimate_far": 2.4,
+        "regeo": true
+      }
+    }
+  ],
+  "created_at": "2026-07-17T23:53:11.831288+00:00",
+  "outputs": [
+    "exports/reels/",
+    "exports/manifests/",
+    "assets/film-grab/pools/"
+  ]
+}

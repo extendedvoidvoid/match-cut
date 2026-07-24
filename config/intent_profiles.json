@@ -1,0 +1,136 @@
+{
+  "_doc": "Intent seeds drive affinity. Not a global keyword allow-list. Category weights mirror IMDb taxonomy. demote_seeds subtract when matched.",
+  "default_intent": "kiss_romance",
+  "category_weights": {
+    "plot_detail": 1.0,
+    "subgenre": 0.7,
+    "timeframe": 0.25,
+    "franchise": 0.15,
+    "other": 0.1
+  },
+  "intents": {
+    "kiss_romance": {
+      "label": "Mouth-kiss / romance still growth",
+      "seeds": [
+        "kiss",
+        "kissing",
+        "couple",
+        "lovers",
+        "romance",
+        "romantic",
+        "love",
+        "love affair",
+        "secret love",
+        "forbidden love",
+        "first love",
+        "falling in love",
+        "affair",
+        "extramarital affair",
+        "adultery",
+        "desire",
+        "passion",
+        "wedding",
+        "married couple",
+        "husband wife relationship",
+        "boyfriend",
+        "girlfriend",
+        "relationship",
+        "newlywed",
+        "honeymoon",
+        "embrace",
+        "intimate",
+        "amour",
+        "star crossed",
+        "unrequited love"
+      ],
+      "demote_seeds": [
+        "zombie",
+        "gore",
+        "slash",
+        "battlefield",
+        "war film",
+        "apocalypse",
+        "superhero",
+        "kaiju"
+      ],
+      "genre_bonus": {
+        "romance": 3.0,
+        "drama": 1.5,
+        "musical": 1.5,
+        "comedy": 0.5,
+        "action": -1.5,
+        "horror": -1.5,
+        "war": -1.5
+      },
+      "tag_boost": {
+        "kiss": 4.0,
+        "couple": 2.5
+      }
+    },
+    "empty_nature": {
+      "label": "Establishing empty nature",
+      "seeds": [
+        "landscape",
+        "forest",
+        "field",
+        "mountain",
+        "sea",
+        "ocean",
+        "beach",
+        "desert",
+        "river",
+        "lake",
+        "countryside",
+        "nature",
+        "wilderness",
+        "island",
+        "snow",
+        "tree",
+        "meadow",
+        "canyon",
+        "cliff"
+      ],
+      "demote_seeds": [
+        "crowd",
+        "cityscape",
+        "office",
+        "party"
+      ],
+      "genre_bonus": {
+        "drama": 0.5,
+        "adventure": 1.0
+      },
+      "tag_boost": {}
+    },
+    "empty_city": {
+      "label": "Establishing empty city",
+      "seeds": [
+        "city",
+        "street",
+        "urban",
+        "skyline",
+        "building",
+        "skyscraper",
+        "alley",
+        "bridge",
+        "subway",
+        "train station",
+        "apartment",
+        "rooftop",
+        "neon",
+        "metropolis",
+        "downtown"
+      ],
+      "demote_seeds": [
+        "forest",
+        "jungle",
+        "farm"
+      ],
+      "genre_bonus": {
+        "drama": 0.5,
+        "thriller": 0.3
+      },
+      "tag_boost": {}
+    }
+  }
+}

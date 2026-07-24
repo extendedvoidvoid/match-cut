@@ -74,3 +74,15 @@ exports/vertical_sources/
 SEE/
 __pycache__/
 *.pyc
+.aider*
+
+# VJ / poster bulk media (regenerate via scripts; keep on disk only)
+assets/movie-posters/bulk/
+assets/movie-posters/by-slug/
+exports/debug/
+exports/manifests/
+exports/reference/
+exports/INDEX.txt
+exports/MISSING.txt
+exports/registry.json
+public/effect-demo-vertical.mp4

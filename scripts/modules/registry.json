@@ -1,0 +1,534 @@
+{
+  "version": 1,
+  "description": "Match-cut feature modules — classify, acquire, render, fx, mix. Mix recipes become new modules.",
+  "modules": {
+    "classify.pass_a_faces": {
+      "id": "classify.pass_a_faces",
+      "version": "1.0.0",
+      "type": "classify",
+      "title": "MediaPipe faces / eyes / lips (Pass A base)",
+      "status": "stable",
+      "inputs": [
+        "assets/film-grab"
+      ],
+      "outputs": [
+        "assets/film-grab/classifications.jsonl"
+      ],
+      "params": {
+        "skip_hands": true,
+        "regeo": false,
+        "force": false
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/fetch-film-grab/classify_pass_a.py",
+        "args_from_params": {
+          "skip_hands": "--skip-hands",
+          "regeo": "--regeo",
+          "force": "--force"
+        }
+      }
+    },
+    "classify.kiss_mouth_geo": {
+      "id": "classify.kiss_mouth_geo",
+      "version": "1.0.0",
+      "type": "classify",
+      "title": "Mouth-to-mouth Hall bands → kiss_geo",
+      "status": "stable",
+      "inputs": [
+        "assets/film-grab"
+      ],
+      "outputs": [
+        "assets/film-grab/classifications.jsonl"
+      ],
+      "params": {
+        "tau_contact": 0.5,
+        "tau_imminent": 1.2,
+        "tau_intimate_far": 2.4,
+        "regeo": true
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/fetch-film-grab/classify_pass_a.py",
+        "fixed_args": [
+          "--regeo",
+          "--skip-hands"
+        ],
+        "note": "Geometry computed inside Pass A; --regeo upgrades multi-face rows"
+      }
+    },
+    "classify.kiss_qwen_see": {
+      "id": "classify.kiss_qwen_see",
+      "version": "1.0.0",
+      "type": "classify",
+      "title": "Qwen2.5-VL sample SEE (pre-download recommend) (post-download optional; NOT online acquire)",
+      "status": "experiment",
+      "inputs": [
+        "candidates_see.jsonl"
+      ],
+      "outputs": [
+        "see_scores.jsonl",
+        "candidates_brute.jsonl"
+      ],
+      "params": {
+        "samples": 2
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/lmstudio/kiss_see.py",
+        "args_map": {
+          "samples": "--samples",
+          "limit": "--limit"
+        }
+      }
+    },
+    "classify.kiss_qwen_full": {
+      "id": "classify.kiss_qwen_full",
+      "version": "0.1.0",
+      "type": "classify",
+      "title": "Qwen2.5-VL on multi-face / kiss_geo candidates",
+      "status": "experiment",
+      "params": {
+        "only": "multi_face"
+      },
+      "runner": {
+        "kind": "stub",
+        "message": "implement scripts/lmstudio/kiss_qwen_full.py"
+      }
+    },
+    "acquire.read_genre": {
+      "id": "acquire.read_genre",
+      "version": "1.0.0",
+      "type": "acquire",
+      "title": "READ film-grab genre category pages",
+      "status": "stable",
+      "params": {
+        "genres": "romance,drama,musical",
+        "max_pages": 0
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/fetch-film-grab/discover_genre.py",
+        "args_map": {
+          "genres": "--genres",
+          "max_pages": "--max-pages",
+          "delay": "--delay"
+        }
+      }
+    },
+    "acquire.ratio_gate": {
+      "id": "acquire.ratio_gate",
+      "version": "1.0.0",
+      "type": "acquire",
+      "title": "DEPRECATED for acquire — use rank_meta READ:BRUTE",
+      "status": "experiment",
+      "params": {
+        "read_see_ratio": 10,
+        "samples_per_film": 2,
+        "min_see": 5,
+        "max_see": 40
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/fetch-film-grab/ratio_gate.py",
+        "args_map": {
+          "read_see_ratio": "--read-see-ratio",
+          "samples_per_film": "--samples-per-film",
+          "min_see": "--min-see",
+          "max_see": "--max-see"
+        }
+      }
+    },
+    "acquire.see_sample_qwen": {
+      "id": "acquire.see_sample_qwen",
+      "version": "1.0.0",
+      "type": "acquire",
+      "title": "SEE thumbs via LM Studio Qwen2.5-VL (post-download optional; NOT online acquire)",
+      "status": "experiment",
+      "params": {
+        "samples": 2
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/lmstudio/kiss_see.py",
+        "args_map": {
+          "samples": "--samples",
+          "limit": "--limit"
+        }
+      }
+    },
+    "acquire.brute_download": {
+      "id": "acquire.brute_download",
+      "version": "1.1.0",
+      "type": "acquire",
+      "title": "Brute full gallery for candidates_brute (meta-ranked)",
+      "status": "stable",
+      "params": {
+        "delay": 0.15
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/fetch-film-grab/brute_from_see.py",
+        "args_map": {
+          "limit": "--limit",
+          "delay": "--delay"
+        }
+      }
+    },
+    "select.filter_kiss_geo": {
+      "id": "select.filter_kiss_geo",
+      "version": "1.0.0",
+      "type": "select",
+      "title": "Filter stills with kiss_geo=true",
+      "status": "stable",
+      "params": {
+        "label": "kiss_geo"
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/modules/select/filter_labels.py",
+        "fixed_args": [
+          "--label",
+          "kiss_geo"
+        ]
+      }
+    },
+    "select.sort_mouth_close": {
+      "id": "select.sort_mouth_close",
+      "version": "1.0.0",
+      "type": "select",
+      "title": "Sort by ascending mouth_dist_norm",
+      "status": "stable",
+      "params": {
+        "key": "mouth_dist_norm",
+        "order": "asc"
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/modules/select/filter_labels.py",
+        "fixed_args": [
+          "--label",
+          "kiss_geo",
+          "--sort",
+          "mouth_dist_norm"
+        ]
+      }
+    },
+    "select.lane_emotion": {
+      "id": "select.lane_emotion",
+      "version": "0.1.0",
+      "type": "select",
+      "title": "Emotion lane (Romance > Drama > Musical)",
+      "status": "experiment",
+      "params": {
+        "genres": [
+          "romance",
+          "drama",
+          "musical"
+        ]
+      },
+      "runner": {
+        "kind": "stub",
+        "message": "score posts by genre lane"
+      }
+    },
+    "render.flat_rate": {
+      "id": "render.flat_rate",
+      "version": "1.0.0",
+      "type": "render",
+      "title": "Reel constant rate (no crescendo), max 30",
+      "status": "stable",
+      "params": {
+        "rate": 30,
+        "duration": 60
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/reel-artifact/render.py",
+        "args_map": {
+          "rate": "--rate",
+          "duration": "--duration"
+        }
+      }
+    },
+    "render.ramp_rate": {
+      "id": "render.ramp_rate",
+      "version": "1.0.0",
+      "type": "render",
+      "title": "Reel start→end rate ramp (legacy)",
+      "status": "experiment",
+      "params": {
+        "start_rate": 6,
+        "end_rate": 30,
+        "ramp_until": 30,
+        "duration": 60
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/reel-artifact/render.py",
+        "args_map": {
+          "start_rate": "--start-rate",
+          "end_rate": "--end-rate",
+          "ramp_until": "--ramp-until",
+          "duration": "--duration"
+        }
+      }
+    },
+    "render.face_montage": {
+      "id": "render.face_montage",
+      "version": "1.0.0",
+      "type": "render",
+      "title": "Eye-lock face montage + smear",
+      "status": "stable",
+      "runner": {
+        "kind": "python",
+        "script": "scripts/reel-artifact/face_montage.py"
+      }
+    },
+    "render.closeup": {
+      "id": "render.closeup",
+      "version": "1.0.0",
+      "type": "render",
+      "title": "Body-part closeup cycle",
+      "status": "stable",
+      "runner": {
+        "kind": "python",
+        "script": "scripts/reel-artifact/closeup.py"
+      }
+    },
+    "fx.negative_toggle": {
+      "id": "fx.negative_toggle",
+      "version": "1.0.0",
+      "type": "fx",
+      "title": "Invert every Nth frame",
+      "status": "stable",
+      "params": {
+        "mode": "negative-toggle"
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/reel-artifact/fx_mix.py",
+        "fixed_args": [
+          "--mode",
+          "negative-toggle"
+        ]
+      }
+    },
+    "fx.interleave": {
+      "id": "fx.interleave",
+      "version": "1.0.0",
+      "type": "fx",
+      "title": "A/B interleave two reels",
+      "status": "stable",
+      "runner": {
+        "kind": "python",
+        "script": "scripts/reel-artifact/fx_mix.py",
+        "fixed_args": [
+          "--mode",
+          "interleave"
+        ]
+      }
+    },
+    "fx.blend": {
+      "id": "fx.blend",
+      "version": "1.0.0",
+      "type": "fx",
+      "title": "50/50 blend two reels",
+      "status": "stable",
+      "runner": {
+        "kind": "python",
+        "script": "scripts/reel-artifact/fx_mix.py",
+        "fixed_args": [
+          "--mode",
+          "blend"
+        ]
+      }
+    },
+    "mix.kiss_flat30_neg": {
+      "id": "mix.kiss_flat30_neg",
+      "version": "1.0.0",
+      "type": "mix",
+      "title": "Kiss geo + flat 30 + negative toggle",
+      "status": "experiment",
+      "parents": [
+        "select.filter_kiss_geo",
+        "select.sort_mouth_close",
+        "render.flat_rate",
+        "fx.negative_toggle"
+      ],
+      "recipe": "scripts/modules/recipes/mix_kiss_flat30_neg.json",
+      "runner": {
+        "kind": "recipe",
+        "recipe": "scripts/modules/recipes/mix_kiss_flat30_neg.json"
+      }
+    },
+    "mix.kiss_classify_stack": {
+      "id": "mix.kiss_classify_stack",
+      "version": "1.0.0",
+      "type": "mix",
+      "title": "Pass A faces + mouth kiss_geo",
+      "status": "experiment",
+      "parents": [
+        "classify.pass_a_faces",
+        "classify.kiss_mouth_geo"
+      ],
+      "recipe": "scripts/modules/recipes/mix_kiss_classify_stack.json",
+      "runner": {
+        "kind": "recipe",
+        "recipe": "scripts/modules/recipes/mix_kiss_classify_stack.json"
+      }
+    },
+    "mix.emotion_acquire": {
+      "id": "mix.emotion_acquire",
+      "version": "1.0.0",
+      "type": "mix",
+      "title": "Romance READ:SEE brute + geo classify",
+      "status": "experiment",
+      "parents": [
+        "acquire.read_genre",
+        "acquire.ratio_gate",
+        "acquire.see_sample_qwen",
+        "acquire.brute_download",
+        "classify.pass_a_faces",
+        "classify.kiss_mouth_geo"
+      ],
+      "recipe": "scripts/modules/recipes/mix_emotion_acquire.json",
+      "runner": {
+        "kind": "recipe",
+        "recipe": "scripts/modules/recipes/mix_emotion_acquire.json"
+      }
+    },
+    "acquire.read_tags": {
+      "id": "acquire.read_tags",
+      "version": "1.0.0",
+      "type": "acquire",
+      "title": "ONLINE meta: film-grab kiss/couple tags",
+      "status": "stable",
+      "params": {},
+      "runner": {
+        "kind": "python",
+        "script": "scripts/fetch-film-grab/read_tags.py",
+        "args_map": {
+          "delay": "--delay",
+          "max_pages": "--max-pages"
+        }
+      }
+    },
+    "acquire.fetch_tmdb_keywords": {
+      "id": "acquire.fetch_tmdb_keywords",
+      "version": "1.0.0",
+      "type": "acquire",
+      "title": "ONLINE meta: TMDB keywords cache (IMDb taxonomy proxy)",
+      "status": "stable",
+      "params": {
+        "limit": 0,
+        "delay": 0.3
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/fetch-film-grab/fetch_tmdb_keywords.py",
+        "args_map": {
+          "limit": "--limit",
+          "delay": "--delay"
+        }
+      }
+    },
+    "acquire.rank_meta": {
+      "id": "acquire.rank_meta",
+      "version": "2.0.0",
+      "type": "acquire",
+      "title": "LOCAL rank meta + keyword affinity → candidates_brute (no vision)",
+      "status": "stable",
+      "params": {
+        "top_k": 30,
+        "min_score": 2,
+        "intent": "kiss_romance"
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/fetch-film-grab/rank_meta.py",
+        "args_map": {
+          "top_k": "--top-k",
+          "min_score": "--min-score",
+          "intent": "--intent"
+        }
+      }
+    },
+    "select.units_1k2e": {
+      "id": "select.units_1k2e",
+      "version": "1.0.0",
+      "type": "select",
+      "title": "1 kiss : 2 empty units + gap math (far→close kiss order)",
+      "status": "stable",
+      "params": {
+        "order": "eek",
+        "duration": 60,
+        "start_rate": 1,
+        "end_rate": 30
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/modules/select/units_1k2e.py",
+        "args_map": {
+          "order": "--order",
+          "duration": "--duration",
+          "start_rate": "--start-rate",
+          "end_rate": "--end-rate",
+          "flat_rate": "--flat-rate"
+        }
+      }
+    },
+    "select.pool_empty": {
+      "id": "select.pool_empty",
+      "version": "1.0.0",
+      "type": "select",
+      "title": "Filter n_faces==0 establishing",
+      "status": "stable",
+      "params": {
+        "label": "paysage"
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/modules/select/filter_labels.py",
+        "fixed_args": [
+          "--label",
+          "paysage"
+        ]
+      }
+    },
+    "mix.kiss_1k2e_crescendo": {
+      "id": "mix.kiss_1k2e_crescendo",
+      "version": "1.0.0",
+      "type": "mix",
+      "title": "1kiss:2empty units far→close + rate crescendo",
+      "status": "experiment",
+      "parents": [
+        "select.units_1k2e",
+        "render.ramp_rate"
+      ],
+      "recipe": "scripts/modules/recipes/mix_kiss_1k2e_crescendo.json",
+      "runner": {
+        "kind": "recipe",
+        "recipe": "scripts/modules/recipes/mix_kiss_1k2e_crescendo.json"
+      }
+    },
+    "classify.scene_empty": {
+      "id": "classify.scene_empty",
+      "version": "1.0.0",
+      "type": "classify",
+      "title": "LM Studio Qwen: empty stills nature|city|interior|other",
+      "status": "stable",
+      "params": {
+        "max_edge": 320
+      },
+      "runner": {
+        "kind": "python",
+        "script": "scripts/lmstudio/scene_empty.py",
+        "args_map": {
+          "limit": "--limit",
+          "max_edge": "--max-edge"
+        }
+      }
+    }
+  }
+}

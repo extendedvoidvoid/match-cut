@@ -18,7 +18,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, fields
 from pathlib import Path
 from typing import Iterable
 from urllib.parse import urlparse, urlunparse
@@ -37,6 +37,8 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUT = ROOT / "assets" / "film-grab"
 MANIFEST_NAME = "manifest.jsonl"
 INVENTORY_NAME = "inventory.csv"
+FILMS_NAME = "films.jsonl"
+CLASSIFICATIONS_NAME = "classifications.jsonl"
 STATE_NAME = "state.json"
 QUALIFIED_CACHE = ROOT / "scripts" / "reel-artifact" / "qualified.jsonl"
 
@@ -58,12 +60,25 @@ DISCOVER_PATHS = [
 
 @dataclass
 class ImageEntry:
+    """Download provenance — never delete rows for failed classification."""
+
     url: str
     film_slug: str
     filename: str
     status: str = "pending"  # pending | done | failed
     bytes: int = 0
     sha256: str = ""
+    # Expanded metadata (optional; empty on legacy rows until enrich)
+    post_url: str = ""
+    film_title: str = ""
+    full_url: str = ""
+    thumb_url: str = ""
+    source: str = "sitemap"  # sitemap | firecrawl | disk | legacy
+    discovered_at: str = ""
+    previous_sha256: str = ""
+
+
+_IMAGE_ENTRY_FIELDS = {f.name for f in fields(ImageEntry)}
 
 
 def normalize_url(url: str) -> str:
@@ -76,6 +91,16 @@ def is_full_gallery_image(url: str) -> bool:
     return "/photo-gallery/" in path and "/thumb/" not in path
 
 
+def is_thumb_url(url: str) -> bool:
+    return "/thumb/" in urlparse(normalize_url(url)).path
+
+
+def full_url_from_thumb(url: str) -> str:
+    """Guess full-res path by stripping /thumb/ segment (film-grab layout)."""
+    u = normalize_url(url)
+    return u.replace("/photo-gallery/thumb/", "/photo-gallery/")
+
+
 def slug_from_post_url(post_url: str) -> str:
     path = urlparse(post_url).path.strip("/")
     return path.split("/")[-1] or "unknown"
@@ -83,6 +108,33 @@ def slug_from_post_url(post_url: str) -> str:
 
 def filename_from_url(url: str) -> str:
     return Path(urlparse(url).path).name
+
+
+def film_title_from_slug(slug: str) -> str:
+    return slug.replace("-", " ").title()
+
+
+def entry_from_dict(data: dict) -> ImageEntry:
+    """Load ImageEntry; ignore unknown keys; fill defaults for new fields."""
+    filtered = {k: v for k, v in data.items() if k in _IMAGE_ENTRY_FIELDS}
+    return ImageEntry(**filtered)
+
+
+def enrich_entry_urls(entry: ImageEntry) -> ImageEntry:
+    """Fill full_url/thumb_url from url without overwriting existing values."""
+    u = normalize_url(entry.url)
+    if is_thumb_url(u):
+        if not entry.thumb_url:
+            entry.thumb_url = u
+        if not entry.full_url:
+            entry.full_url = full_url_from_thumb(u)
+    else:
+        if not entry.full_url:
+            entry.full_url = u
+        # thumb counterpart is optional
+    if not entry.film_title and entry.film_slug:
+        entry.film_title = film_title_from_slug(entry.film_slug)
+    return entry
 
 
 def load_manifest(path: Path) -> dict[str, ImageEntry]:
@@ -95,7 +147,7 @@ def load_manifest(path: Path) -> dict[str, ImageEntry]:
             if not line:
                 continue
             data = json.loads(line)
-            entry = ImageEntry(**data)
+            entry = enrich_entry_urls(entry_from_dict(data))
             entries[normalize_url(entry.url)] = entry
     return entries
 
@@ -283,10 +335,18 @@ async def plan_manifest(
                 dest_key = (slug, fname)
                 if dest_key in used_paths:
                     continue
-                entry = ImageEntry(
-                    url=key,
-                    film_slug=slug,
-                    filename=fname,
+                entry = enrich_entry_urls(
+                    ImageEntry(
+                        url=key,
+                        film_slug=slug,
+                        filename=fname,
+                        post_url=post_url,
+                        film_title=film_title_from_slug(slug),
+                        full_url=key if not is_thumb_url(key) else full_url_from_thumb(key),
+                        thumb_url=key if is_thumb_url(key) else "",
+                        source="sitemap",
+                        discovered_at=datetime.now(timezone.utc).isoformat(),
+                    )
                 )
                 entries[key] = entry
                 used_paths.add(dest_key)
@@ -510,7 +570,79 @@ def load_inventory_marks(csv_path: Path) -> dict[str, dict[str, str]]:
     return marks
 
 
+def _inventory_row(
+    *,
+    image_id: str,
+    film_slug: str,
+    filename: str,
+    local_path: str,
+    source_url: str,
+    full_url: str,
+    thumb_url: str,
+    post_url: str,
+    film_title: str,
+    size: str,
+    sha: str,
+    manifest_status: str,
+    on_disk: str,
+    qualified: set[str],
+    preserved: dict[str, dict[str, str]],
+    generated_at: str,
+    source: str,
+    is_thumb_source: str,
+) -> dict[str, str]:
+    prev = preserved.get(local_path) or preserved.get(image_id, {})
+    return {
+        "image_id": image_id,
+        "film_slug": film_slug,
+        "filename": filename,
+        "local_path": local_path,
+        "source_url": source_url,
+        "full_url": full_url,
+        "thumb_url": thumb_url,
+        "post_url": post_url,
+        "film_title": film_title,
+        "bytes": size,
+        "sha256": sha,
+        "manifest_status": manifest_status,
+        "on_disk": on_disk,
+        "is_thumb_source": is_thumb_source,
+        "source": source,
+        "qualified_reel": "yes" if local_path in qualified else "no",
+        "marked_delete": prev.get("marked_delete", ""),
+        "notes": prev.get("notes", ""),
+        "inventory_generated_at": generated_at,
+    }
+
+
+INVENTORY_FIELDS = [
+    "image_id",
+    "film_slug",
+    "filename",
+    "local_path",
+    "source_url",
+    "full_url",
+    "thumb_url",
+    "post_url",
+    "film_title",
+    "bytes",
+    "sha256",
+    "manifest_status",
+    "on_disk",
+    "is_thumb_source",
+    "source",
+    "qualified_reel",
+    "marked_delete",
+    "notes",
+    "inventory_generated_at",
+]
+
+
 def cmd_inventory(args: argparse.Namespace) -> int:
+    """Write inventory.csv for every manifest row + every on-disk JPG (keep-all).
+
+    Preserves marked_delete / notes. Never deletes files.
+    """
     out_dir = Path(args.output).expanduser().resolve()
     manifest_path = out_dir / MANIFEST_NAME
     csv_path = Path(args.csv).expanduser().resolve() if args.csv else out_dir / INVENTORY_NAME
@@ -533,7 +665,6 @@ def cmd_inventory(args: argparse.Namespace) -> int:
         exists = dest.is_file() and dest.stat().st_size > 0
         local_path = str(dest.resolve()) if exists else str(dest)
         image_id = f"{entry.film_slug}/{entry.filename}"
-        prev = preserved.get(local_path) or preserved.get(image_id, {})
 
         size = ""
         sha = entry.sha256 or ""
@@ -543,48 +674,150 @@ def cmd_inventory(args: argparse.Namespace) -> int:
             if not sha:
                 sha = hashlib.sha256(dest.read_bytes()).hexdigest()
 
-        rows.append({
-            "image_id": image_id,
-            "film_slug": entry.film_slug,
-            "filename": entry.filename,
-            "local_path": local_path,
-            "source_url": entry.url,
-            "bytes": size or str(entry.bytes or ""),
-            "sha256": sha,
-            "manifest_status": entry.status,
-            "on_disk": "yes" if exists else "no",
-            "qualified_reel": "yes" if local_path in qualified else "no",
-            "marked_delete": prev.get("marked_delete", ""),
-            "notes": prev.get("notes", ""),
-            "inventory_generated_at": generated_at,
-        })
+        rows.append(
+            _inventory_row(
+                image_id=image_id,
+                film_slug=entry.film_slug,
+                filename=entry.filename,
+                local_path=local_path,
+                source_url=entry.url,
+                full_url=entry.full_url or "",
+                thumb_url=entry.thumb_url or "",
+                post_url=entry.post_url or "",
+                film_title=entry.film_title or film_title_from_slug(entry.film_slug),
+                size=size or str(entry.bytes or ""),
+                sha=sha,
+                manifest_status=entry.status,
+                on_disk="yes" if exists else "no",
+                qualified=qualified,
+                preserved=preserved,
+                generated_at=generated_at,
+                source=entry.source or "legacy",
+                is_thumb_source="yes" if is_thumb_url(entry.url) else "no",
+            )
+        )
+
+    # Keep-all: disk orphans not yet in manifest still appear in inventory
+    if out_dir.is_dir():
+        for film_dir in sorted(p for p in out_dir.iterdir() if p.is_dir()):
+            for img in sorted(film_dir.glob("*.jpg")):
+                path_key = (film_dir.name, img.name)
+                if path_key in seen_paths:
+                    continue
+                seen_paths.add(path_key)
+                image_id = f"{film_dir.name}/{img.name}"
+                local_path = str(img.resolve())
+                sha = hashlib.sha256(img.read_bytes()).hexdigest()
+                rows.append(
+                    _inventory_row(
+                        image_id=image_id,
+                        film_slug=film_dir.name,
+                        filename=img.name,
+                        local_path=local_path,
+                        source_url="",
+                        full_url="",
+                        thumb_url="",
+                        post_url="",
+                        film_title=film_title_from_slug(film_dir.name),
+                        size=str(img.stat().st_size),
+                        sha=sha,
+                        manifest_status="orphan_disk",
+                        on_disk="yes",
+                        qualified=qualified,
+                        preserved=preserved,
+                        generated_at=generated_at,
+                        source="disk",
+                        is_thumb_source="unknown",
+                    )
+                )
 
     rows.sort(key=lambda r: (r["film_slug"], r["filename"]))
 
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = [
-        "image_id",
-        "film_slug",
-        "filename",
-        "local_path",
-        "source_url",
-        "bytes",
-        "sha256",
-        "manifest_status",
-        "on_disk",
-        "qualified_reel",
-        "marked_delete",
-        "notes",
-        "inventory_generated_at",
-    ]
     with csv_path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=INVENTORY_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
 
     on_disk = sum(1 for r in rows if r["on_disk"] == "yes")
-    print(f"inventory: {len(rows)} rows | on_disk={on_disk} | {csv_path}")
+    thumbs = sum(1 for r in rows if r["is_thumb_source"] == "yes")
+    print(
+        f"inventory: {len(rows)} rows | on_disk={on_disk} | thumb_source={thumbs} | {csv_path}"
+    )
     return 0
+
+
+def cmd_enrich_manifest(args: argparse.Namespace) -> int:
+    """Rewrite manifest with full_url/thumb_url/film_title filled. No deletes."""
+    out_dir = Path(args.output).expanduser().resolve()
+    manifest_path = out_dir / MANIFEST_NAME
+    entries = load_manifest(manifest_path)
+    for e in entries.values():
+        enrich_entry_urls(e)
+        if not e.source:
+            e.source = "legacy"
+    rewrite_manifest(manifest_path, entries)
+    thumbs = sum(1 for e in entries.values() if is_thumb_url(e.url))
+    print(
+        json.dumps(
+            {
+                "manifest_entries": len(entries),
+                "thumb_source_urls": thumbs,
+                "full_source_urls": len(entries) - thumbs,
+                "path": str(manifest_path),
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+def cmd_audit(args: argparse.Namespace) -> int:
+    """Thumb/full audit + disk vs manifest vs inventory counts (read-only stats)."""
+    out_dir = Path(args.output).expanduser().resolve()
+    entries = load_manifest(out_dir / MANIFEST_NAME)
+    on_disk = count_local_images(out_dir)
+    films = [p for p in out_dir.iterdir() if p.is_dir()] if out_dir.is_dir() else []
+    thumb_n = sum(1 for e in entries.values() if is_thumb_url(e.url))
+    full_n = len(entries) - thumb_n
+    missing_done = sum(
+        1
+        for e in entries.values()
+        if e.status == "done" and not (out_dir / e.film_slug / e.filename).is_file()
+    )
+    inv_path = out_dir / INVENTORY_NAME
+    inv_rows = 0
+    if inv_path.exists():
+        with inv_path.open() as f:
+            inv_rows = max(0, sum(1 for _ in f) - 1)
+
+    # disk keys vs manifest keys
+    disk_keys: set[tuple[str, str]] = set()
+    for film_dir in films:
+        for img in film_dir.glob("*.jpg"):
+            disk_keys.add((film_dir.name, img.name))
+    man_keys = {(e.film_slug, e.filename) for e in entries.values()}
+    orphan_disk = len(disk_keys - man_keys)
+    orphan_manifest = len(man_keys - disk_keys)
+
+    report = {
+        "out_dir": str(out_dir),
+        "on_disk_jpgs": on_disk,
+        "films": len(films),
+        "manifest_entries": len(entries),
+        "manifest_thumb_urls": thumb_n,
+        "manifest_full_urls": full_n,
+        "missing_done_files": missing_done,
+        "disk_not_in_manifest": orphan_disk,
+        "manifest_not_on_disk": orphan_manifest,
+        "inventory_rows": inv_rows,
+        "inventory_stale": inv_rows != on_disk and inv_rows != len(entries),
+        "classifications_exists": (out_dir / CLASSIFICATIONS_NAME).is_file(),
+        "films_meta_exists": (out_dir / FILMS_NAME).is_file(),
+        "policy": "keep_all_images — never delete for classification",
+    }
+    print(json.dumps(report, indent=2))
+    return 0 if missing_done == 0 else 1
 
 
 def cmd_discover(_: argparse.Namespace) -> int:
@@ -685,6 +918,18 @@ def main() -> int:
         help=f"CSV path (default: <output>/{INVENTORY_NAME})",
     )
     p_inv.set_defaults(func=cmd_inventory)
+
+    p_enrich = sub.add_parser(
+        "enrich-manifest",
+        help="Fill full_url/thumb_url/film_title on all manifest rows (no deletes)",
+    )
+    p_enrich.set_defaults(func=cmd_enrich_manifest)
+
+    p_audit = sub.add_parser(
+        "audit",
+        help="Thumb/full + disk/manifest/inventory alignment report (keep-all policy)",
+    )
+    p_audit.set_defaults(func=cmd_audit)
 
     args = parser.parse_args()
     fn = args.func

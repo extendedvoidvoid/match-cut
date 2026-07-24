@@ -1,5 +1,6 @@
 # AGENTS.md — Match Cut Generator
 
+**Session start:** read [`STATUS.md`](STATUS.md) first (shipped / left / next command).  
 **Canonical rules:** [docs/GOOD_PRACTICES.md](docs/GOOD_PRACTICES.md)  
 **Enforcement:** `npm run check:practices` + CI + `.cursor/rules/good-practices.mdc`
 

@@ -1,0 +1,37 @@
+{
+  "id": "mix.kiss_1k2e_crescendo",
+  "type": "mix",
+  "version": "1.0.0",
+  "title": "1kiss:2empty units far→close + rate crescendo",
+  "status": "experiment",
+  "parents": [
+    "select.units_1k2e",
+    "render.ramp_rate"
+  ],
+  "graph": [
+    {
+      "module": "select.units_1k2e",
+      "params": {
+        "order": "eek",
+        "duration": 60,
+        "start_rate": 1,
+        "end_rate": 30
+      }
+    },
+    {
+      "module": "render.ramp_rate",
+      "params": {
+        "start_rate": 6,
+        "end_rate": 30,
+        "ramp_until": 30,
+        "duration": 60
+      }
+    }
+  ],
+  "created_at": "2026-07-18T12:25:47.689479+00:00",
+  "outputs": [
+    "exports/reels/",
+    "exports/manifests/",
+    "assets/film-grab/pools/"
+  ]
+}
